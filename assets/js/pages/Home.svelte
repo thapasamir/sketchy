@@ -1,13 +1,20 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte'
   import InkTrail from '../components/InkTrail.svelte'
+  import Wordmark from '../components/Wordmark.svelte'
+  import Button from '../components/Button.svelte'
+  import Card from '../components/Card.svelte'
 
   const dispatch = createEventDispatcher()
 
-  let mode = null // 'create' or 'join'
+  let mode = null // null = landing, 'create' or 'join'
   let roomCode = ''
   let playerName = ''
   let error = ''
+
+  const labelClass = 'mb-2 block font-stamp text-sm uppercase tracking-widest'
+  const inputClass =
+    'w-full rounded-[3px] border-2 border-riso-ink bg-white px-3.5 py-3 font-type text-base placeholder:text-riso-line focus:outline-2 focus:outline-offset-2 focus:outline-riso-blue'
 
   // Logo misprint: the two inks slide in opposite directions as the pointer moves
   onMount(() => {
@@ -30,6 +37,15 @@
 
   function handleJoin() {
     mode = 'join'
+  }
+
+  function submitCreate() {
+    error = ''
+    if (!playerName.trim()) {
+      error = 'Please enter your name'
+      return
+    }
+    dispatch('join', { code: null, name: playerName.trim() })
   }
 
   function submitJoin() {
@@ -59,306 +75,72 @@
   }
 </script>
 
-<style>
-  .container {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    background:
-      radial-gradient(circle at 20% 30%, rgba(0,0,0,.12) 1px, transparent 2px),
-      radial-gradient(circle at 70% 60%, rgba(255,255,255,.12) 1px, transparent 2px),
-      linear-gradient(135deg, #F4F2EC 0%, #EFEDE6 100%);
-    background-size: 9px 11px, 13px 7px, 100% 100%;
-  }
-
-  .hero {
-    text-align: center;
-    margin-bottom: 60px;
-  }
-
-  .logo {
-    font-family: var(--f-display);
-    font-size: clamp(48px, 12vw, 120px);
-    line-height: 0.9;
-    margin-bottom: 20px;
-    position: relative;
-    display: inline-block;
-    letter-spacing: -0.02em;
-  }
-
-  .logo .pink {
-    color: var(--riso-pink);
-    mix-blend-mode: multiply;
-    display: block;
-    transform: translate(var(--mx, 0px), var(--my, 0px));
-    transition: transform 0.15s ease-out;
-  }
-
-  .logo .blue {
-    color: var(--riso-blue);
-    mix-blend-mode: multiply;
-    position: absolute;
-    inset: 0;
-    transform: translate(calc(4px - var(--mx, 0px)), calc(3px - var(--my, 0px)));
-    transition: transform 0.15s ease-out;
-    opacity: 0.9;
-  }
-
-  .tagline {
-    font-size: 18px;
-    color: #55574F;
-    max-width: 400px;
-    margin: 0 auto;
-    font-family: var(--f-type);
-  }
-
-  .mode-select {
-    display: flex;
-    gap: 20px;
-    margin-bottom: 40px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .btn {
-    padding: 16px 32px;
-    font-size: 18px;
-    border: 2px solid var(--riso-ink);
-    background: transparent;
-    color: var(--riso-ink);
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    min-width: 200px;
-  }
-
-  .btn:hover:not(:disabled) {
-    transform: translate(-2px, -2px);
-    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.1);
-  }
-
-  .btn-primary {
-    background: var(--riso-pink);
-    color: var(--riso-paper);
-    border-color: var(--riso-pink);
-    mix-blend-mode: multiply;
-  }
-
-  .form-card {
-    background: rgba(255, 255, 255, 0.6);
-    border: 2px solid var(--riso-ink);
-    padding: 40px;
-    border-radius: 4px;
-    max-width: 400px;
-    width: 100%;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  }
-
-  .form-group {
-    margin-bottom: 24px;
-  }
-
-  .form-group label {
-    display: block;
-    font-family: var(--f-stamp);
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 8px;
-    color: var(--riso-ink);
-  }
-
-  .form-group input {
-    width: 100%;
-    padding: 12px 14px;
-    font-size: 16px;
-    font-family: var(--f-type);
-  }
-
-  .form-group input::placeholder {
-    color: #B9BBB0;
-  }
-
-  .error {
-    color: #C8102E;
-    font-size: 14px;
-    margin-top: 8px;
-    font-family: var(--f-stamp);
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 32px;
-  }
-
-  /* the landing buttons have a 200px minimum; form buttons must share the card width */
-  .form-actions .btn {
-    min-width: 0;
-  }
-
-  .btn-submit {
-    flex: 1;
-    background: var(--riso-blue);
-    color: white;
-    border-color: var(--riso-blue);
-    padding: 14px 24px;
-  }
-
-  .btn-cancel {
-    flex: 1;
-    background: transparent;
-    color: var(--riso-ink);
-    border-color: var(--riso-ink);
-    padding: 14px 24px;
-  }
-
-  .btn-submit:hover {
-    transform: translate(-2px, -2px);
-    box-shadow: 4px 4px 0 rgba(0, 120, 191, 0.3);
-  }
-
-  .btn-cancel:hover {
-    background: rgba(255, 72, 176, 0.05);
-  }
-
-  .room-code-input {
-    text-transform: uppercase;
-    font-family: var(--f-stamp);
-    font-size: 32px;
-    text-align: center;
-    letter-spacing: 8px;
-    font-weight: bold;
-    padding: 16px;
-  }
-
-  @media (max-width: 480px) {
-    .container {
-      padding: 16px;
-    }
-
-    .hero {
-      margin-bottom: 40px;
-    }
-
-    .form-card {
-      padding: 24px;
-    }
-
-    .mode-select {
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .btn {
-      width: 100%;
-      min-width: unset;
-    }
-  }
-</style>
-
 {#if mode === null}
   <InkTrail />
-  <div class="container">
-    <div class="hero">
-      <div class="logo">
-        <span class="pink">SKETCHY</span>
-        <span class="blue">SKETCHY</span>
-      </div>
-      <p class="tagline">
+  <main class="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
+    <div class="mb-12 text-center">
+      <Wordmark class="text-[clamp(3rem,13vw,7.5rem)]" />
+      <p class="mx-auto mt-5 max-w-sm text-balance text-lg text-riso-muted">
         Draw things. Catch the imposter. Win together.
       </p>
     </div>
 
-    <div class="mode-select">
-      <button class="btn btn-primary" on:click={handleCreate}>
-        Create Room
-      </button>
-      <button class="btn" on:click={handleJoin}>
-        Join Room
-      </button>
+    <div class="flex w-full max-w-sm flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:gap-5">
+      <Button variant="pink" class="sm:min-w-52" on:click={handleCreate}>Create Room</Button>
+      <Button class="sm:min-w-52" on:click={handleJoin}>Join Room</Button>
     </div>
-  </div>
-{:else if mode === 'create'}
-  <div class="container">
-    <div class="form-card">
-      <h2 style="font-family: var(--f-display); font-size: 24px; margin-bottom: 24px;">
-        <span style="color: var(--riso-pink); mix-blend-mode: multiply;">Create</span> Room
-      </h2>
+  </main>
+{:else}
+  <main class="flex min-h-dvh items-center justify-center px-4 py-8">
+    <Card class="w-full max-w-sm">
+      {#if mode === 'create'}
+        <h2 class="mb-4 font-display text-2xl">
+          <span class="text-riso-pink mix-blend-multiply">Create</span> Room
+        </h2>
+        <p class="mb-6 text-sm text-riso-muted">
+          Share your room code with friends. Everyone draws, someone is the imposter.
+        </p>
 
-      <p style="margin-bottom: 24px; font-size: 14px; color: #55574F;">
-        Share your room code with friends. Everyone draws, someone is the imposter.
-      </p>
+        <label for="name" class={labelClass}>Your Name</label>
+        <input id="name" type="text" bind:value={playerName} placeholder="Enter your name" maxlength="20" class={inputClass} />
 
-      <div class="form-group">
-        <label for="name">Your Name</label>
-        <input
-          id="name"
-          type="text"
-          bind:value={playerName}
-          placeholder="Enter your name"
-          maxlength="20"
-        />
-      </div>
+        {#if error}
+          <p class="mt-3 font-stamp text-sm text-riso-stamp" role="alert">{error}</p>
+        {/if}
 
-      <div class="form-actions">
-        <button class="btn btn-submit" on:click={() => {
-          if (playerName.trim()) {
-            dispatch('join', { code: null, name: playerName.trim() })
-          }
-        }}>
-          Create
-        </button>
-        <button class="btn btn-cancel" on:click={handleBack}>
-          Back
-        </button>
-      </div>
-    </div>
-  </div>
-{:else if mode === 'join'}
-  <div class="container">
-    <div class="form-card">
-      <h2 style="font-family: var(--f-display); font-size: 24px; margin-bottom: 24px;">
-        <span style="color: var(--riso-blue); mix-blend-mode: multiply;">Join</span> Room
-      </h2>
+        <div class="mt-8 flex gap-3">
+          <Button variant="blue" class="min-w-0 flex-1" on:click={submitCreate}>Create</Button>
+          <Button class="min-w-0 flex-1" on:click={handleBack}>Back</Button>
+        </div>
+      {:else}
+        <h2 class="mb-6 font-display text-2xl">
+          <span class="text-riso-blue mix-blend-multiply">Join</span> Room
+        </h2>
 
-      <div class="form-group">
-        <label for="code">Room Code</label>
-        <input
-          id="code"
-          type="text"
-          bind:value={roomCode}
-          placeholder="ABCD"
-          maxlength="4"
-          class="room-code-input"
-        />
-      </div>
+        <div class="mb-6">
+          <label for="code" class={labelClass}>Room Code</label>
+          <input
+            id="code"
+            type="text"
+            bind:value={roomCode}
+            placeholder="ABCD"
+            maxlength="4"
+            autocapitalize="characters"
+            class="{inputClass} pl-[0.5em] text-center font-stamp text-3xl font-bold uppercase tracking-[0.5em]" />
+        </div>
 
-      <div class="form-group">
-        <label for="joinname">Your Name</label>
-        <input
-          id="joinname"
-          type="text"
-          bind:value={playerName}
-          placeholder="Enter your name"
-          maxlength="20"
-        />
-      </div>
+        <label for="joinname" class={labelClass}>Your Name</label>
+        <input id="joinname" type="text" bind:value={playerName} placeholder="Enter your name" maxlength="20" class={inputClass} />
 
-      {#if error}
-        <div class="error">❌ {error}</div>
+        {#if error}
+          <p class="mt-3 font-stamp text-sm text-riso-stamp" role="alert">{error}</p>
+        {/if}
+
+        <div class="mt-8 flex gap-3">
+          <Button variant="blue" class="min-w-0 flex-1" on:click={submitJoin}>Join</Button>
+          <Button class="min-w-0 flex-1" on:click={handleBack}>Back</Button>
+        </div>
       {/if}
-
-      <div class="form-actions">
-        <button class="btn btn-submit" on:click={submitJoin}>
-          Join
-        </button>
-        <button class="btn btn-cancel" on:click={handleBack}>
-          Back
-        </button>
-      </div>
-    </div>
-  </div>
+    </Card>
+  </main>
 {/if}
