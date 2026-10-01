@@ -66,16 +66,8 @@
   })
 </script>
 
-<canvas bind:this={canvas} aria-hidden="true"></canvas>
-
-<style>
-  canvas {
-    position: fixed;
-    inset: 0;
-    width: 100vw;
-    height: 100vh;
-    pointer-events: none;
-    z-index: 10;
-    mix-blend-mode: multiply;
-  }
-</style>
+<canvas
+  bind:this={canvas}
+  aria-hidden="true"
+  class="pointer-events-none fixed inset-0 z-10 h-screen w-screen mix-blend-multiply"
+></canvas>
