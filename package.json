@@ -1,0 +1,14 @@
+{
+  "scripts": {
+    "build": "node esbuild.js",
+    "dev": "node esbuild.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.4",
+    "esbuild-svelte": "^0.9.5",
+    "svelte": "^5.57.1"
+  },
+  "dependencies": {
+    "phoenix": "^1.8.0"
+  }
+}
