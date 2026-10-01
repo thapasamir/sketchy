@@ -67,9 +67,9 @@ defmodule Backend.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild backend"],
-      "assets.deploy": ["esbuild backend --minify", "phx.digest"],
+      "assets.setup": ["cmd npm install"],
+      "assets.build": ["cmd npm run build"],
+      "assets.deploy": ["cmd npm run build:prod", "phx.digest"],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end

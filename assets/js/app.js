@@ -1,4 +1,3 @@
-import "../css/app.css"
 import { mount } from "svelte"
 import { Socket } from "phoenix"
 import App from "./App.svelte"

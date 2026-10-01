@@ -1,18 +1,73 @@
-@import url('https://fonts.googleapis.com/css2?family=Bowlby+One&family=Courier+Prime:wght@400;700&family=Special+Elite&family=Permanent+Marker&family=Gochi+Hand&family=Patrick+Hand&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bowlby+One&family=Courier+Prime:wght@400;700&family=Special+Elite&display=swap');
+@import "tailwindcss" source(none);
+@source "../js";
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* Riso Case File design tokens. Use as bg-riso-pink, text-riso-ink, font-display, ... */
+@theme {
+  --color-riso-paper: #F4F2EC;
+  --color-riso-pink: #FF48B0;
+  --color-riso-blue: #0078BF;
+  --color-riso-yellow: #FFE800;
+  --color-riso-ink: #263A6E;
+  --color-riso-muted: #55574F;
+  --color-riso-line: #B9BBB0;
+  --color-riso-stamp: #C8102E;
+
+  --font-display: "Bowlby One", "Arial Black", Impact, sans-serif;
+  --font-type: "Courier Prime", "Courier New", monospace;
+  --font-stamp: "Special Elite", "Courier New", monospace;
 }
 
-html, body {
-  width: 100%;
-  height: 100%;
+@layer base {
+  html,
+  body {
+    min-height: 100%;
+  }
+
+  /* paper with a faint halftone dot grain */
+  body {
+    font-family: var(--font-type);
+    color: var(--color-riso-ink);
+    background-color: var(--color-riso-paper);
+    background-image:
+      radial-gradient(circle at 20% 30%, rgb(0 0 0 / 0.12) 1px, transparent 2px),
+      radial-gradient(circle at 70% 60%, rgb(255 255 255 / 0.12) 1px, transparent 2px),
+      linear-gradient(135deg, #f4f2ec 0%, #efede6 100%);
+    background-size: 9px 11px, 13px 7px, 100% 100%;
+    background-attachment: fixed;
+  }
 }
 
-body {
-  font-family: "Courier Prime", monospace;
-  background: #F4F2EC;
-  color: #263A6E;
+/* range sliders cannot be styled with utilities alone (thumb pseudo-elements) */
+@layer components {
+  .riso-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--color-riso-line);
+    outline: none;
+    appearance: none;
+  }
+  .riso-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-riso-pink);
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 0.2);
+  }
+  .riso-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-riso-pink);
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 0.2);
+  }
+  .riso-slider:focus-visible {
+    outline: 2px solid var(--color-riso-blue);
+    outline-offset: 4px;
+  }
 }

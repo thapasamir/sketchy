@@ -12,7 +12,7 @@ const options = {
   sourcemap: !prod,
   minify: prod,
   logLevel: 'info',
-  plugins: [sveltePlugin()],
+  plugins: [sveltePlugin({ compilerOptions: { css: 'injected' } })],
 }
 
 if (watch) {

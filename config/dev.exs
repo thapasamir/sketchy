@@ -19,13 +19,24 @@ config :backend, Backend.Repo,
 config :backend, BackendWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}],
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT", "4000"))],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "05gBXlaejPB0QwOSiuQ7rUo82wL8Wvsp88ND0IMuz5qxk3NkLOyKqJlDAyttCG3O",
   watchers: [
-    node: ["esbuild.js", "--watch", cd: Path.expand("..", __DIR__)]
+    # Svelte -> priv/static/assets/app.js
+    node: ["esbuild.js", "--watch", cd: Path.expand("..", __DIR__)],
+    # Tailwind -> priv/static/assets/app.css
+    node: [
+      "node_modules/@tailwindcss/cli/dist/index.mjs",
+      "-i",
+      "assets/css/app.css",
+      "-o",
+      "priv/static/assets/app.css",
+      "--watch",
+      cd: Path.expand("..", __DIR__)
+    ]
   ]
 
 # ## SSL Support
