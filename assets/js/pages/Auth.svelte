@@ -30,12 +30,12 @@
 
     busy = true
     try {
-      const { user_id } =
+      const { user_id, username: confirmed, token } =
         mode === 'register'
           ? await registerUser(name, email.trim(), password)
           : await loginUser(name, password)
 
-      dispatch('authed', { userId: user_id, userType: 'registered', username: name })
+      dispatch('authed', { userId: user_id, userType: 'registered', username: confirmed, token })
     } catch (e) {
       error = e.message
       busy = false

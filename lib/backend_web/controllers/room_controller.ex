@@ -6,15 +6,27 @@ defmodule BackendWeb.RoomController do
   alias Backend.Rooms
 
   # POST /api/rooms   body: {"name": "Samir"}
-  def create(conn, %{"name" => name}), do: respond(conn, Rooms.create_room(name), :created)
+  def create(conn, %{"name" => name}) do
+    respond(conn, Rooms.create_room(display_name(conn, name)), :created)
+  end
+
   def create(conn, _params), do: error(conn, :name_required)
 
   # POST /api/rooms/ABCD/join   body: {"name": "Priya"}
   def join(conn, %{"code" => code, "name" => name}) do
-    respond(conn, Rooms.join_room(code, name), :ok)
+    respond(conn, Rooms.join_room(code, display_name(conn, name)), :ok)
   end
 
   def join(conn, _params), do: error(conn, :name_required)
+
+  # A logged-in account always plays under its username; the name in the request is ignored,
+  # so nobody can pose as someone else. Guests choose their own name.
+  defp display_name(conn, requested) do
+    case conn.assigns[:current_user] do
+      %{user_type: "registered", username: username} -> username
+      _ -> requested
+    end
+  end
 
   defp respond(conn, {:ok, %{code: code, player_id: player_id}}, status) do
     conn |> put_status(status) |> json(%{code: code, player_id: player_id})

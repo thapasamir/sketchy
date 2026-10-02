@@ -5,6 +5,12 @@ defmodule Backend.Rooms.RoomServer do
   Other code never touches the struct directly: it sends this process a message
   (`GenServer.call/2`) and the process handles messages one at a time, in order.
   That is why no locks are needed.
+
+  It also knows who is *really* connected. Each player's WebSocket channel process registers with
+  `connect/3`, and this process monitors it (`Process.monitor/1`): when the channel dies for any
+  reason (tab closed, wifi dropped, crash) the BEAM sends us a `:DOWN` message. A player who is
+  away stays in the room for a grace period so a refresh or a network blip doesn't cost them
+  their seat; after that they are removed. When the last player is gone the room closes itself.
   """
 
   # :temporary = if this process crashes, do NOT restart it. A restart would start from empty
@@ -23,8 +29,22 @@ defmodule Backend.Rooms.RoomServer do
   end
 
   def get_state(code), do: call(code, :get_state)
-
   def join(code, player_id, name), do: call(code, {:join, player_id, name})
+
+  @doc "Register `pid` (a channel process) as one of `player_id`'s live connections."
+  def connect(code, player_id, pid), do: call(code, {:connect, player_id, pid})
+
+  @doc "The player leaves on purpose: removed immediately, no grace period."
+  def leave(code, player_id), do: call(code, {:leave, player_id})
+
+  def update_settings(code, player_id, changes),
+    do: call(code, {:update_settings, player_id, changes})
+
+  def start_game(code, player_id), do: call(code, {:start_game, player_id})
+  def set_ready(code, player_id, ready?), do: call(code, {:set_ready, player_id, ready?})
+
+  @doc "The host removes another player. They are told, and may rejoin like anyone else."
+  def kick(code, host_id, target_id), do: call(code, {:kick, host_id, target_id})
 
   # Registry.lookup is a cheap in-memory lookup: code -> pid
   defp call(code, message) do
@@ -34,13 +54,13 @@ defmodule Backend.Rooms.RoomServer do
     end
   end
 
-  # The Registry forgets a dead process slightly AFTER it dies. In that gap lookup still returns
-  # the old pid, and GenServer.call on a dead pid makes the CALLER exit with :noproc.
-  # A room that just closed is simply "not found", so turn that exit into an error value.
+  # The Registry forgets a dead process slightly AFTER it dies, and a room that is closing can
+  # exit while we're mid-call. Either way the answer is "that room is gone", not a crash.
   defp call_pid(pid, message) do
     GenServer.call(pid, message)
   catch
-    :exit, {:noproc, _call} -> {:error, :room_not_found}
+    :exit, {reason, _call} when reason in [:noproc, :normal, :shutdown] ->
+      {:error, :room_not_found}
   end
 
   # Registering under {:via, Registry, ...} makes the code the process's name.
@@ -48,6 +68,12 @@ defmodule Backend.Rooms.RoomServer do
   defp via(code), do: {:via, Registry, {Backend.RoomRegistry, code}}
 
   # --- Callbacks: run INSIDE the room process ---
+  #
+  # State is a map:
+  #   room     - the Room struct (pure data, what players see)
+  #   grace_ms - how long an away player keeps their seat
+  #   monitors - %{monitor_ref => player_id}, one entry per live channel connection
+  #   expiry   - %{player_id => {token, timer}}, a pending "remove if still away" timer
 
   @impl true
   def init(opts) do
@@ -55,26 +81,173 @@ defmodule Backend.Rooms.RoomServer do
     host = Keyword.fetch!(opts, :host)
 
     room = code |> Room.new(host.id) |> Room.add_player(host.id, host.name)
+    state = %{room: room, grace_ms: Keyword.fetch!(opts, :grace_ms), monitors: %{}, expiry: %{}}
+
     Logger.info("Room #{code} created by #{host.name}")
-    {:ok, room}
+    # The host isn't connected until their channel joins. If that never happens, the room closes.
+    {:ok, schedule_expiry(state, host.id)}
   end
 
   # Pattern matching on the message picks the clause, like a router for messages.
   @impl true
-  def handle_call(:get_state, _from, room) do
-    {:reply, {:ok, room}, room}
-  end
+  def handle_call(:get_state, _from, state), do: {:reply, {:ok, state.room}, state}
 
   # Check-and-add happens inside ONE message, so two people grabbing the last seat or the same
   # name at the same moment are handled one after the other. The second one is told no.
-  def handle_call({:join, player_id, name}, _from, room) do
-    case Room.join(room, player_id, name) do
+  # Joining reserves a seat quietly; everyone is told when that player's channel connects.
+  def handle_call({:join, player_id, name}, _from, state) do
+    case Room.join(state.room, player_id, name) do
       {:ok, room} ->
-        broadcast(room)
-        {:reply, {:ok, room}, room}
+        {:reply, {:ok, room}, state |> put_room(room) |> schedule_expiry(player_id)}
 
       {:error, _reason} = error ->
-        {:reply, error, room}
+        {:reply, error, state}
+    end
+  end
+
+  def handle_call({:connect, player_id, pid}, _from, state) do
+    if Room.member?(state.room, player_id) do
+      ref = Process.monitor(pid)
+
+      state =
+        state
+        |> Map.update!(:monitors, &Map.put(&1, ref, player_id))
+        |> cancel_expiry(player_id)
+        |> put_room(Room.set_connected(state.room, player_id, true))
+
+      broadcast(state.room)
+      {:reply, {:ok, state.room}, state}
+    else
+      {:reply, {:error, :not_a_member}, state}
+    end
+  end
+
+  def handle_call({:leave, player_id}, _from, state) do
+    case remove_player(state, player_id) do
+      {:open, state} -> {:reply, :ok, state}
+      {:closed, state} -> {:stop, :normal, :ok, state}
+    end
+  end
+
+  def handle_call({:update_settings, player_id, changes}, _from, state) do
+    apply_change(state, Room.update_settings(state.room, player_id, changes))
+  end
+
+  def handle_call({:set_ready, player_id, ready?}, _from, state) do
+    apply_change(state, Room.set_ready(state.room, player_id, ready?))
+  end
+
+  def handle_call({:kick, host_id, target_id}, _from, state) do
+    case Room.can_kick(state.room, host_id, target_id) do
+      :ok ->
+        # tell the kicked player's channel first, then everyone else sees the shorter list
+        Phoenix.PubSub.broadcast(
+          Backend.PubSub,
+          "rooms:" <> state.room.code,
+          {:player_kicked, target_id}
+        )
+
+        # the host always remains, so the room can't be empty here
+        {:open, state} = remove_player(state, target_id)
+        {:reply, :ok, state}
+
+      {:error, _reason} = error ->
+        {:reply, error, state}
+    end
+  end
+
+  def handle_call({:start_game, player_id}, _from, state) do
+    apply_change(state, Room.start_game(state.room, player_id))
+  end
+
+  # A channel process died. If that was the player's last connection they are now "away".
+  @impl true
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
+    case Map.pop(state.monitors, ref) do
+      {nil, _monitors} ->
+        {:noreply, state}
+
+      {player_id, monitors} ->
+        state = %{state | monitors: monitors}
+
+        if connected?(state, player_id) do
+          {:noreply, state}
+        else
+          state =
+            state
+            |> put_room(Room.set_connected(state.room, player_id, false))
+            |> schedule_expiry(player_id)
+
+          broadcast(state.room)
+          {:noreply, state}
+        end
+    end
+  end
+
+  # The grace period ended. The token check ignores a timer that a reconnect has since replaced.
+  def handle_info({:expire, player_id, token}, state) do
+    with %{^player_id => {^token, _timer}} <- state.expiry,
+         :lobby <- state.room.phase do
+      case remove_player(state, player_id) do
+        {:open, state} -> {:noreply, state}
+        {:closed, state} -> {:stop, :normal, state}
+      end
+    else
+      _ -> {:noreply, state}
+    end
+  end
+
+  @impl true
+  def terminate(reason, state) do
+    Logger.info("Room #{state.room.code} closed (#{inspect(reason)})")
+  end
+
+  # --- helpers ---
+
+  defp apply_change(state, {:ok, room}) do
+    state = put_room(state, room)
+    broadcast(room)
+    {:reply, {:ok, room}, state}
+  end
+
+  defp apply_change(state, {:error, _reason} = error), do: {:reply, error, state}
+
+  defp put_room(state, room), do: %{state | room: room}
+
+  defp connected?(state, player_id), do: player_id in Map.values(state.monitors)
+
+  defp remove_player(state, player_id) do
+    # stop watching this player's channels so their later exit isn't treated as a disconnect
+    {theirs, others} = Enum.split_with(state.monitors, fn {_ref, id} -> id == player_id end)
+    Enum.each(theirs, fn {ref, _id} -> Process.demonitor(ref, [:flush]) end)
+
+    state = %{state | monitors: Map.new(others)} |> cancel_expiry(player_id)
+    room = Room.remove_player(state.room, player_id)
+    state = put_room(state, room)
+
+    if map_size(room.players) == 0 do
+      {:closed, state}
+    else
+      broadcast(room)
+      {:open, state}
+    end
+  end
+
+  defp schedule_expiry(state, player_id) do
+    state = cancel_expiry(state, player_id)
+    token = make_ref()
+    timer = Process.send_after(self(), {:expire, player_id, token}, state.grace_ms)
+    %{state | expiry: Map.put(state.expiry, player_id, {token, timer})}
+  end
+
+  defp cancel_expiry(state, player_id) do
+    case Map.pop(state.expiry, player_id) do
+      {nil, _expiry} ->
+        state
+
+      {{_token, timer}, expiry} ->
+        Process.cancel_timer(timer)
+        %{state | expiry: expiry}
     end
   end
 

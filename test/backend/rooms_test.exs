@@ -86,13 +86,243 @@ defmodule Backend.RoomsTest do
       assert map_size(room.players) == 8
     end
 
-    test "subscribers are told when someone joins" do
-      {:ok, %{code: code}} = Rooms.create_room("Samir")
+    test "subscribers are told when the new player's connection arrives" do
+      {:ok, %{code: code, player_id: host}} = Rooms.create_room("Samir")
+      Rooms.connect(code, host, self())
       Rooms.subscribe(code)
 
-      {:ok, _} = Rooms.join_room(code, "Priya")
-      assert_receive {:room_updated, %{players: players}}
-      assert map_size(players) == 2
+      {:ok, %{player_id: id}} = Rooms.join_room(code, "Priya")
+      refute_receive {:room_updated, _}, 50
+
+      {:ok, _} = Rooms.connect(code, id, self())
+      assert_receive {:room_updated, %{players: %{^id => %{connected?: true}}}}
+    end
+  end
+
+  # A stand-in for a channel process: alive until told to stop
+  defp fake_connection do
+    spawn(fn ->
+      receive do
+        :stop -> :ok
+      end
+    end)
+  end
+
+  defp stop(pid) do
+    ref = Process.monitor(pid)
+    send(pid, :stop)
+    assert_receive {:DOWN, ^ref, :process, ^pid, _}
+  end
+
+  describe "connections" do
+    setup do
+      {:ok, %{code: code, player_id: host}} = Rooms.create_room("Host")
+      {:ok, %{player_id: guest}} = Rooms.join_room(code, "Guest")
+      host_conn = fake_connection()
+      guest_conn = fake_connection()
+      {:ok, _} = Rooms.connect(code, host, host_conn)
+      {:ok, _} = Rooms.connect(code, guest, guest_conn)
+      Rooms.subscribe(code)
+      %{code: code, host: host, guest: guest, host_conn: host_conn, guest_conn: guest_conn}
+    end
+
+    test "only members can connect", %{code: code} do
+      assert {:error, :not_a_member} = Rooms.connect(code, "stranger", self())
+      assert {:error, :room_not_found} = Rooms.connect("ZZZZ", "x", self())
+    end
+
+    test "a dropped connection marks the player away, then removes them after the grace period",
+         %{code: code, guest: guest, guest_conn: conn} do
+      stop(conn)
+
+      assert_receive {:room_updated, %{players: %{^guest => %{connected?: false}}}}, 1000
+      {:ok, room} = RoomServer.get_state(code)
+      assert Map.has_key?(room.players, guest), "still has a seat during the grace period"
+
+      assert_receive {:room_updated, room}, 2000
+      refute Map.has_key?(room.players, guest)
+    end
+
+    test "reconnecting inside the grace period keeps the seat", %{
+      code: code,
+      guest: guest,
+      guest_conn: conn
+    } do
+      stop(conn)
+      assert_receive {:room_updated, %{players: %{^guest => %{connected?: false}}}}, 1000
+
+      {:ok, _} = Rooms.connect(code, guest, fake_connection())
+      assert_receive {:room_updated, %{players: %{^guest => %{connected?: true}}}}, 1000
+
+      refute_receive {:room_updated, _}, 700
+      {:ok, room} = RoomServer.get_state(code)
+      assert room.players[guest].connected?
+    end
+
+    test "a player with two tabs is only away when both are gone", %{
+      code: code,
+      guest: guest,
+      guest_conn: tab1
+    } do
+      tab2 = fake_connection()
+      {:ok, _} = Rooms.connect(code, guest, tab2)
+      assert_receive {:room_updated, _}, 1000
+
+      stop(tab1)
+      refute_receive {:room_updated, _}, 100
+      {:ok, room} = RoomServer.get_state(code)
+      assert room.players[guest].connected?
+
+      stop(tab2)
+      assert_receive {:room_updated, %{players: %{^guest => %{connected?: false}}}}, 1000
+    end
+
+    test "leaving on purpose frees the seat immediately and the stale connection is ignored", %{
+      code: code,
+      guest: guest,
+      guest_conn: conn
+    } do
+      assert :ok = Rooms.leave(code, guest)
+      assert_receive {:room_updated, room}, 1000
+      refute Map.has_key?(room.players, guest)
+
+      stop(conn)
+      refute_receive {:room_updated, _}, 100
+    end
+
+    test "when the host leaves, the next player becomes host", %{
+      code: code,
+      host: host,
+      guest: guest
+    } do
+      :ok = Rooms.leave(code, host)
+      assert_receive {:room_updated, room}, 1000
+      assert room.host_id == guest
+    end
+
+    test "the room closes when the last player leaves", %{code: code, host: host, guest: guest} do
+      [{pid, _}] = Registry.lookup(Backend.RoomRegistry, code)
+      ref = Process.monitor(pid)
+
+      :ok = Rooms.leave(code, host)
+      :ok = Rooms.leave(code, guest)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+      assert {:error, :room_not_found} = RoomServer.get_state(code)
+    end
+
+    test "the room closes when everyone drops and nobody comes back", %{
+      code: code,
+      host_conn: host_conn,
+      guest_conn: guest_conn
+    } do
+      [{pid, _}] = Registry.lookup(Backend.RoomRegistry, code)
+      ref = Process.monitor(pid)
+
+      stop(host_conn)
+      stop(guest_conn)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2000
+    end
+  end
+
+  test "a room nobody ever connects to closes itself" do
+    {:ok, %{code: code}} = Rooms.create_room("Ghost")
+    [{pid, _}] = Registry.lookup(Backend.RoomRegistry, code)
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2000
+  end
+
+  describe "settings and starting" do
+    setup do
+      {:ok, %{code: code, player_id: host}} = Rooms.create_room("Host")
+      {:ok, %{player_id: p2}} = Rooms.join_room(code, "Two")
+      {:ok, %{player_id: p3}} = Rooms.join_room(code, "Three")
+      for id <- [host, p2, p3], do: {:ok, _} = Rooms.connect(code, id, fake_connection())
+      %{code: code, host: host, p2: p2, p3: p3}
+    end
+
+    test "ready flags are shared with everyone and cleared when settings change", %{
+      code: code,
+      host: host,
+      p2: p2
+    } do
+      Rooms.subscribe(code)
+      {:ok, _} = Rooms.set_ready(code, p2, true)
+      assert_receive {:room_updated, %{players: %{^p2 => %{ready?: true}}}}
+
+      {:ok, _} = Rooms.update_settings(code, host, %{"rounds" => 4})
+      assert_receive {:room_updated, %{players: %{^p2 => %{ready?: false}}}}
+    end
+
+    test "the host removes a player: they're told, the others see the new list", %{
+      code: code,
+      host: host,
+      p2: p2
+    } do
+      Rooms.subscribe(code)
+      assert :ok = Rooms.kick(code, host, p2)
+
+      assert_receive {:player_kicked, ^p2}
+      assert_receive {:room_updated, room}
+      refute Map.has_key?(room.players, p2)
+    end
+
+    test "kick is refused for non-hosts, the host and strangers", %{
+      code: code,
+      host: host,
+      p2: p2,
+      p3: p3
+    } do
+      assert {:error, :not_host} = Rooms.kick(code, p2, p3)
+      assert {:error, :host_cannot} = Rooms.kick(code, host, host)
+      assert {:error, :not_a_member} = Rooms.kick(code, host, "ghost")
+    end
+
+    test "a removed player can come back in with a fresh seat", %{code: code, host: host, p2: p2} do
+      :ok = Rooms.kick(code, host, p2)
+      assert {:ok, %{player_id: new_id}} = Rooms.join_room(code, "Two")
+      assert new_id != p2
+    end
+
+    test "the host changes settings; everyone gets the update", %{code: code, host: host} do
+      Rooms.subscribe(code)
+      assert {:ok, _} = Rooms.update_settings(code, host, %{"rounds" => 4, "draw_time" => 90})
+      assert_receive {:room_updated, %{settings: %{rounds: 4, draw_time: 90}}}
+    end
+
+    test "a non-host cannot", %{code: code, p2: p2} do
+      assert {:error, :not_host} = Rooms.update_settings(code, p2, %{"rounds" => 4})
+      assert {:error, :not_host} = Rooms.start_game(code, p2)
+    end
+
+    test "bad values are refused", %{code: code, host: host} do
+      assert {:error, :invalid_settings} = Rooms.update_settings(code, host, %{"rounds" => 9})
+      assert {:error, :invalid_settings} = Rooms.update_settings(code, host, %{"draw_time" => 45})
+      assert {:error, :invalid_settings} = Rooms.update_settings(code, host, %{"rounds" => "3"})
+    end
+
+    test "the host starts the game, after which nothing in the lobby can change", %{
+      code: code,
+      host: host,
+      p2: p2,
+      p3: p3
+    } do
+      assert {:error, :not_all_ready} = Rooms.start_game(code, host)
+      {:ok, _} = Rooms.set_ready(code, p2, true)
+      {:ok, _} = Rooms.set_ready(code, p3, true)
+
+      assert {:ok, %{phase: :playing}} = Rooms.start_game(code, host)
+      assert {:error, :game_in_progress} = Rooms.start_game(code, host)
+      assert {:error, :game_in_progress} = Rooms.update_settings(code, host, %{"rounds" => 4})
+      assert {:error, :game_in_progress} = Rooms.join_room(code, "Late")
+      assert {:error, :not_host} = Rooms.update_settings(code, p2, %{"rounds" => 4})
+    end
+
+    test "starting needs enough connected players" do
+      {:ok, %{code: code, player_id: host}} = Rooms.create_room("Solo")
+      {:ok, _} = Rooms.connect(code, host, fake_connection())
+      assert {:error, :not_enough_players} = Rooms.start_game(code, host)
     end
   end
 

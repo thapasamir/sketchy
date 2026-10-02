@@ -4,14 +4,16 @@ defmodule BackendWeb.UserController do
   import Plug.Conn
 
   alias Backend.Accounts
+  alias BackendWeb.Auth
 
   # POST /api/users/guest
   def create_guest(conn, _params) do
     {:ok, %{user_id: user_id}} = Accounts.create_guest_user()
+    user = Accounts.get_user(user_id)
 
     conn
     |> put_status(:created)
-    |> json(%{user_id: user_id, user_type: "guest"})
+    |> json(session(user))
   rescue
     _e ->
       error(conn, :server_error)
@@ -26,7 +28,7 @@ defmodule BackendWeb.UserController do
       {:ok, user} ->
         conn
         |> put_status(:created)
-        |> json(%{user_id: user.id, user_type: "registered"})
+        |> json(session(user))
 
       {:error, changeset} ->
         error(conn, changeset_errors(changeset))
@@ -41,7 +43,7 @@ defmodule BackendWeb.UserController do
       {:ok, user} ->
         conn
         |> put_status(:ok)
-        |> json(%{user_id: user.id, user_type: "registered"})
+        |> json(session(user))
 
       {:error, :invalid_credentials} ->
         error(conn, :invalid_credentials)
@@ -50,10 +52,29 @@ defmodule BackendWeb.UserController do
 
   def login(conn, _params), do: error(conn, :invalid_params)
 
+  # GET /api/users/me   header: Authorization: Bearer <token>
+  # The browser calls this on load to ask "is my saved login still valid, and who am I?"
+  def me(conn, _params) do
+    case conn.assigns.current_user do
+      nil -> error(conn, :unauthorized)
+      user -> json(conn, Map.delete(session(user), :token))
+    end
+  end
+
+  defp session(user) do
+    %{
+      user_id: user.id,
+      user_type: user.user_type,
+      username: user.username,
+      token: Auth.sign(user)
+    }
+  end
+
   defp error(conn, reason) do
     {status, message} =
       case reason do
         :invalid_credentials -> {401, "Username or password is incorrect"}
+        :unauthorized -> {401, "Please log in again"}
         :invalid_params -> {422, "Missing required fields"}
         :server_error -> {500, "Could not create user, please try again"}
         errors when is_map(errors) -> {422, format_errors(errors)}

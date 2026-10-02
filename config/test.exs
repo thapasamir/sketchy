@@ -29,3 +29,6 @@ config :phoenix, :plug_init_mode, :runtime
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# A disconnected player keeps their seat this long (default 30s). Short so tests can see it expire.
+config :backend, reconnect_grace_ms: 300

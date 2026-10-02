@@ -3,6 +3,7 @@ defmodule BackendWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug BackendWeb.Auth
   end
 
   # JSON endpoints: one request, one response
@@ -12,6 +13,7 @@ defmodule BackendWeb.Router do
     post "/users/guest", UserController, :create_guest
     post "/users/register", UserController, :register
     post "/users/login", UserController, :login
+    get "/users/me", UserController, :me
     post "/rooms", RoomController, :create
     post "/rooms/:code/join", RoomController, :join
   end

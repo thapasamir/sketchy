@@ -9,6 +9,7 @@
 
   // set when someone opened an invite link like /room/ABCD
   export let inviteCode = ''
+  export let notice = '' // e.g. "Your session expired"
 
   let busy = false
   let error = ''
@@ -31,8 +32,8 @@
     error = ''
     busy = true
     try {
-      const { user_id } = await createGuestUser()
-      dispatch('authed', { userId: user_id, userType: 'guest' })
+      const { user_id, token } = await createGuestUser()
+      dispatch('authed', { userId: user_id, userType: 'guest', token })
     } catch (e) {
       error = e.message
       busy = false
@@ -48,6 +49,10 @@
       Draw things. Catch the imposter. Win together.
     </p>
   </div>
+
+  {#if notice}
+    <p class="mb-6 max-w-sm text-center font-stamp text-sm text-riso-stamp" role="status">{notice}</p>
+  {/if}
 
   {#if inviteCode}
     <p class="mb-6 max-w-sm border-2 border-dashed border-riso-ink bg-riso-yellow/40 px-4 py-3 text-center font-stamp text-sm">

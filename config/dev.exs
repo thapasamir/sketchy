@@ -74,3 +74,8 @@ config :phoenix, :stacktrace_depth, 20
 
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# How long a disconnected player keeps their seat (default 30s). Override to try it quickly:
+#   RECONNECT_GRACE_MS=2500 mix phx.server
+config :backend,
+  reconnect_grace_ms: String.to_integer(System.get_env("RECONNECT_GRACE_MS", "30000"))

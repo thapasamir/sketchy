@@ -15,14 +15,33 @@
   let errorMessage = ''
   let room = null
   let channel = null
-
-  let rounds = 3
-  let drawTime = 60
+  let actionError = ''
+  let copied = ''
 
   // The server's room state is the source of truth; every update replaces it wholesale.
   $: players = room ? room.players : []
-  $: hostId = room?.host_id
+  $: isHost = room?.host_id === playerId
   $: code = room ? room.code : roomCode
+  $: connectedCount = players.filter(p => p.connected).length
+  $: minPlayers = room?.min_players ?? 3
+  $: playing = room?.phase === 'playing'
+  $: me = players.find(p => p.id === playerId)
+  $: myReady = !!me?.ready
+  // everyone who is here, isn't the host, and hasn't said ready (away players don't hold things up)
+  $: waitingFor = players.filter(p => p.id !== room?.host_id && p.connected && !p.ready).length
+  $: canStart = isHost && connectedCount >= minPlayers && waitingFor === 0
+
+  // Removing someone takes two clicks so a slip can't kick a friend
+  let confirmKick = null
+  let confirmTimer
+
+  // The sliders show whatever the server says; only the host can move them.
+  let rounds = 3
+  let drawTime = 60
+  $: if (room) {
+    rounds = room.settings.rounds
+    drawTime = room.settings.draw_time
+  }
 
   const reasons = {
     room_not_found: 'That room has closed. Start a new one or join another.',
@@ -30,7 +49,67 @@
     timeout: 'Could not reach the server. Check your connection and try again.',
   }
 
-  let copied = ''
+  const actionErrors = {
+    not_host: 'Only the host can do that.',
+    not_all_ready: 'Everyone needs to be ready first.',
+    not_a_member: 'That player has already left.',
+    host_cannot: "The host can't do that.",
+    invalid_settings: "Those settings aren't allowed.",
+    not_enough_players: `Need at least ${minPlayers} connected players to start.`,
+    game_in_progress: 'The game has already started.',
+  }
+
+  onMount(() => {
+    channel = joinRoom(roomCode, playerId, {
+      onJoined: r => {
+        room = r
+        status = 'live'
+      },
+      onUpdate: r => (room = r),
+      onKicked: () => dispatch('gone', 'The host removed you from the room.'),
+      onError: reason => {
+        const message = reasons[reason] || 'Could not connect to the room.'
+        // A closed room or a seat that isn't yours can't be fixed by retrying: go home and say why.
+        if (reason === 'timeout') {
+          errorMessage = message
+          status = 'error'
+        } else {
+          dispatch('gone', message)
+        }
+      },
+    })
+  })
+
+  // Leaving the screen on purpose (Leave button, browser Back, room closed) frees the seat right
+  // away. Closing the tab or refreshing skips this, so the server keeps the seat for a grace
+  // period and you can come straight back.
+  onDestroy(() => {
+    channel?.push('leave', {})
+    channel?.leave()
+  })
+
+  function send(event, payload = {}) {
+    actionError = ''
+    channel
+      .push(event, payload)
+      .receive('error', ({ reason }) => (actionError = actionErrors[reason] || 'Something went wrong.'))
+      .receive('timeout', () => (actionError = reasons.timeout))
+  }
+
+  const toggleReady = () => send('set_ready', { ready: !myReady })
+
+  function kick(player) {
+    clearTimeout(confirmTimer)
+    if (confirmKick === player.id) {
+      confirmKick = null
+      send('kick', { player_id: player.id })
+    } else {
+      confirmKick = player.id
+      confirmTimer = setTimeout(() => (confirmKick = null), 3000)
+    }
+  }
+
+  const saveSettings = () => send('update_settings', { rounds: Number(rounds), draw_time: Number(drawTime) })
 
   async function copy(text, key) {
     try {
@@ -46,28 +125,6 @@
     copied = key
     setTimeout(() => copied === key && (copied = ''), 1500)
   }
-
-  onMount(() => {
-    channel = joinRoom(roomCode, playerId, {
-      onJoined: r => {
-        room = r
-        status = 'live'
-      },
-      onUpdate: r => (room = r),
-      onError: reason => {
-        const message = reasons[reason] || 'Could not connect to the room.'
-        // A closed room or a seat that isn't yours can't be fixed by retrying: go home and say why.
-        if (reason === 'timeout') {
-          errorMessage = message
-          status = 'error'
-        } else {
-          dispatch('gone', message)
-        }
-      },
-    })
-  })
-
-  onDestroy(() => channel?.leave())
 
   const labelClass = 'mb-2 block font-stamp text-xs uppercase tracking-widest'
 </script>
@@ -118,40 +175,119 @@
         <ul class="flex flex-col gap-2" id="player-list">
           {#each players as player (player.id)}
             <li
-              class="rounded-[2px] border-l-4 p-3 {player.id === hostId
+              data-player={player.name}
+              class="flex items-center justify-between gap-3 rounded-[2px] border-l-4 p-3 transition-opacity {player.id === room.host_id
                 ? 'border-riso-pink bg-riso-pink/5'
-                : 'border-riso-blue bg-riso-blue/5'}">
-              {player.name}
-              {#if player.id === hostId}<span class="font-stamp text-xs text-riso-pink mix-blend-multiply">(Host)</span>{/if}
-              {#if player.id === playerId}<span class="font-stamp text-xs text-riso-muted">(You)</span>{/if}
+                : 'border-riso-blue bg-riso-blue/5'} {player.connected ? '' : 'opacity-50'}">
+              <span class="min-w-0 break-words">
+                {player.name}
+                {#if player.id === room.host_id}<span class="font-stamp text-xs text-riso-pink mix-blend-multiply">(Host)</span>{/if}
+                {#if player.id === playerId}<span class="font-stamp text-xs text-riso-muted">(You)</span>{/if}
+                {#if !player.connected}<span class="font-stamp text-xs text-riso-muted">(away)</span>{/if}
+                {#if player.ready && player.id !== room.host_id}<span class="font-stamp text-xs text-riso-blue">(ready)</span>{/if}
+              </span>
+
+              {#if isHost && player.id !== playerId && !playing}
+                <button
+                  type="button"
+                  data-kick={player.name}
+                  on:click={() => kick(player)}
+                  class="shrink-0 cursor-pointer rounded-[3px] border px-2.5 py-1 font-stamp text-xs {confirmKick === player.id
+                    ? 'border-riso-stamp bg-riso-stamp text-white'
+                    : 'border-riso-line text-riso-muted hover:border-riso-ink hover:text-riso-ink'}">
+                  {confirmKick === player.id ? 'Sure?' : 'Remove'}
+                </button>
+              {/if}
             </li>
           {/each}
         </ul>
       </Card>
 
-      <Card class="flex flex-col gap-6">
-        <h3 class="font-display text-2xl sm:text-3xl">Settings</h3>
+      {#if playing}
+        <Card class="flex flex-col justify-center gap-3 text-center" >
+          <h3 id="game-started" class="font-display text-2xl sm:text-3xl">Game on</h3>
+          <p class="text-riso-muted">
+            {room.settings.rounds} rounds, {room.settings.draw_time}s to draw. The drawing board is the next
+            thing we build.
+          </p>
+        </Card>
+      {:else}
+        <Card class="flex flex-col gap-6">
+          <div class="flex items-baseline justify-between gap-3">
+            <h3 class="font-display text-2xl sm:text-3xl">Settings</h3>
+            {#if !isHost}
+              <span class="font-stamp text-xs uppercase tracking-widest text-riso-muted">Host decides</span>
+            {/if}
+          </div>
 
-        <div>
-          <label for="rounds" class={labelClass}>Number of Rounds</label>
-          <div class="mb-2 text-center font-display text-3xl text-riso-blue">{rounds}</div>
-          <input id="rounds" type="range" class="riso-slider" min="2" max="4" bind:value={rounds} />
-        </div>
+          <div>
+            <label for="rounds" class={labelClass}>Number of Rounds</label>
+            <div id="rounds-value" class="mb-2 text-center font-display text-3xl text-riso-blue">{rounds}</div>
+            <input
+              id="rounds"
+              type="range"
+              class="riso-slider disabled:opacity-60"
+              min="2"
+              max="4"
+              disabled={!isHost}
+              bind:value={rounds}
+              on:change={saveSettings} />
+          </div>
 
-        <div>
-          <label for="drawtime" class={labelClass}>Draw Time (seconds)</label>
-          <div class="mb-2 text-center font-display text-3xl text-riso-blue">{drawTime}s</div>
-          <input id="drawtime" type="range" class="riso-slider" min="30" max="90" step="10" bind:value={drawTime} />
-        </div>
+          <div>
+            <label for="drawtime" class={labelClass}>Draw Time (seconds)</label>
+            <div id="drawtime-value" class="mb-2 text-center font-display text-3xl text-riso-blue">{drawTime}s</div>
+            <input
+              id="drawtime"
+              type="range"
+              class="riso-slider disabled:opacity-60"
+              min="30"
+              max="90"
+              step="10"
+              disabled={!isHost}
+              bind:value={drawTime}
+              on:change={saveSettings} />
+          </div>
 
-        <Button
-          variant="yellow"
-          class="mt-auto w-full py-4 text-xl"
-          disabled={players.length < 3}
-          on:click={() => console.log('Start game')}>
-          {players.length < 3 ? `Need ${3 - players.length} more players` : 'START GAME'}
-        </Button>
-      </Card>
+          {#if actionError}
+            <p class="font-stamp text-sm text-riso-stamp" role="alert">{actionError}</p>
+          {/if}
+
+          {#if isHost}
+            <Button
+              id="start-button"
+              variant="yellow"
+              class="mt-auto w-full py-4 text-xl"
+              disabled={!canStart}
+              on:click={() => send('start')}>
+              {#if connectedCount < minPlayers}
+                Need {minPlayers - connectedCount} more {minPlayers - connectedCount === 1 ? 'player' : 'players'}
+              {:else if waitingFor > 0}
+                Waiting for {waitingFor} to get ready
+              {:else}
+                START GAME
+              {/if}
+            </Button>
+          {:else}
+            <div class="mt-auto">
+              <Button
+                id="ready-button"
+                variant={myReady ? 'blue' : 'yellow'}
+                class="w-full py-4 text-xl"
+                on:click={toggleReady}>
+                {myReady ? 'Ready (tap to undo)' : "I'M READY"}
+              </Button>
+              <p class="mt-3 text-center font-stamp text-xs text-riso-muted">
+                {#if connectedCount < minPlayers}
+                  Need {minPlayers - connectedCount} more {minPlayers - connectedCount === 1 ? 'player' : 'players'} before the host can start.
+                {:else}
+                  The host starts once everyone is ready.
+                {/if}
+              </p>
+            </div>
+          {/if}
+        </Card>
+      {/if}
     </div>
   {/if}
 </main>

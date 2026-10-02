@@ -39,6 +39,34 @@ defmodule Backend.Rooms do
     end
   end
 
+  @doc "Mark `player_id` as connected through `pid` (their channel). Fails if they aren't in the room."
+  def connect(code, player_id, pid), do: RoomServer.connect(normalize_code(code), player_id, pid)
+
+  @doc "Leave on purpose: the seat is freed immediately, and the room closes if it's now empty."
+  def leave(code, player_id), do: RoomServer.leave(normalize_code(code), player_id)
+
+  @doc "Host changes the settings. `params` come straight from the browser (string keys)."
+  def update_settings(code, player_id, params) do
+    changes =
+      for {param, key} <- [{"rounds", :rounds}, {"draw_time", :draw_time}],
+          Map.has_key?(params, param),
+          into: %{},
+          do: {key, params[param]}
+
+    RoomServer.update_settings(normalize_code(code), player_id, changes)
+  end
+
+  @doc "A non-host player toggles ready."
+  def set_ready(code, player_id, ready?),
+    do: RoomServer.set_ready(normalize_code(code), player_id, ready?)
+
+  @doc "Host removes another player from the lobby."
+  def kick(code, host_id, target_id),
+    do: RoomServer.kick(normalize_code(code), host_id, target_id)
+
+  @doc "Host starts the game."
+  def start_game(code, player_id), do: RoomServer.start_game(normalize_code(code), player_id)
+
   @doc "Get `{:room_updated, room}` messages in this process whenever the room changes."
   def subscribe(code) do
     Phoenix.PubSub.subscribe(Backend.PubSub, "rooms:" <> normalize_code(code))
@@ -58,7 +86,7 @@ defmodule Backend.Rooms do
 
   defp start_room(host, attempts_left) do
     code = generate_code()
-    spec = {RoomServer, code: code, host: host}
+    spec = {RoomServer, code: code, host: host, grace_ms: grace_ms()}
 
     case DynamicSupervisor.start_child(Backend.RoomSupervisor, spec) do
       {:ok, _pid} -> {:ok, %{code: code, player_id: host.id}}
@@ -66,6 +94,9 @@ defmodule Backend.Rooms do
       {:error, _other} -> {:error, :room_start_failed}
     end
   end
+
+  # How long a disconnected player keeps their seat (config/test.exs shortens it for tests)
+  defp grace_ms, do: Application.get_env(:backend, :reconnect_grace_ms, 30_000)
 
   defp validate_name(name) when is_binary(name) do
     trimmed = String.trim(name)

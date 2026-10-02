@@ -26,7 +26,7 @@ function remove(key) {
 
 export function loadUser() {
   const user = read(USER)
-  return user && user.userId && user.userType ? user : null
+  return user && user.userId && user.userType && user.token ? user : null
 }
 export const saveUser = user => write(USER, user)
 export const clearUser = () => remove(USER)

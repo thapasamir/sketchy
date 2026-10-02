@@ -16,6 +16,7 @@
 <button
   {type}
   {disabled}
+  {...$$restProps}
   on:click
   class="cursor-pointer rounded-[3px] border-2 px-6 py-3.5 font-display text-lg transition duration-200 enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 {variants[variant]} {className}"
 >
