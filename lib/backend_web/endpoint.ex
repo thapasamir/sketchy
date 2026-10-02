@@ -11,6 +11,11 @@ defmodule BackendWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  # WebSocket for the game channels (see BackendWeb.UserSocket)
+  socket "/socket", BackendWeb.UserSocket,
+    websocket: true,
+    longpoll: false
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),

@@ -29,9 +29,18 @@ defmodule Backend.Rooms.RoomServer do
   # Registry.lookup is a cheap in-memory lookup: code -> pid
   defp call(code, message) do
     case Registry.lookup(Backend.RoomRegistry, code) do
-      [{pid, _value}] -> GenServer.call(pid, message)
+      [{pid, _value}] -> call_pid(pid, message)
       [] -> {:error, :room_not_found}
     end
+  end
+
+  # The Registry forgets a dead process slightly AFTER it dies. In that gap lookup still returns
+  # the old pid, and GenServer.call on a dead pid makes the CALLER exit with :noproc.
+  # A room that just closed is simply "not found", so turn that exit into an error value.
+  defp call_pid(pid, message) do
+    GenServer.call(pid, message)
+  catch
+    :exit, {:noproc, _call} -> {:error, :room_not_found}
   end
 
   # Registering under {:via, Registry, ...} makes the code the process's name.

@@ -4,6 +4,7 @@
   import Wordmark from '../components/Wordmark.svelte'
   import Button from '../components/Button.svelte'
   import Card from '../components/Card.svelte'
+  import { createRoom } from '../lib/api.js'
 
   const dispatch = createEventDispatcher()
 
@@ -11,6 +12,7 @@
   let roomCode = ''
   let playerName = ''
   let error = ''
+  let busy = false
 
   const labelClass = 'mb-2 block font-stamp text-sm uppercase tracking-widest'
   const inputClass =
@@ -39,13 +41,22 @@
     mode = 'join'
   }
 
-  function submitCreate() {
+  async function submitCreate() {
     error = ''
     if (!playerName.trim()) {
       error = 'Please enter your name'
       return
     }
-    dispatch('join', { code: null, name: playerName.trim() })
+
+    busy = true
+    try {
+      const { code, player_id } = await createRoom(playerName.trim())
+      dispatch('join', { code, name: playerName.trim(), playerId: player_id })
+    } catch (e) {
+      error = e.message
+    } finally {
+      busy = false
+    }
   }
 
   function submitJoin() {
@@ -109,7 +120,9 @@
         {/if}
 
         <div class="mt-8 flex gap-3">
-          <Button variant="blue" class="min-w-0 flex-1" on:click={submitCreate}>Create</Button>
+          <Button variant="blue" class="min-w-0 flex-1" disabled={busy} on:click={submitCreate}>
+            {busy ? 'Creating…' : 'Create'}
+          </Button>
           <Button class="min-w-0 flex-1" on:click={handleBack}>Back</Button>
         </div>
       {:else}
