@@ -4,13 +4,17 @@
   import Wordmark from '../components/Wordmark.svelte'
   import Button from '../components/Button.svelte'
   import Card from '../components/Card.svelte'
-  import { createRoom } from '../lib/api.js'
+  import { createGuestUser, registerUser, loginUser, createRoom } from '../lib/api.js'
 
   const dispatch = createEventDispatcher()
 
-  let mode = null // null = landing, 'create' or 'join'
+  let mode = null // null = landing, 'guest', 'auth-form', 'room-form'
+  let authMode = 'register' // 'register' | 'login'
   let roomCode = ''
   let playerName = ''
+  let username = ''
+  let email = ''
+  let password = ''
   let error = ''
   let busy = false
 
@@ -18,7 +22,6 @@
   const inputClass =
     'w-full rounded-[3px] border-2 border-riso-ink bg-white px-3.5 py-3 font-type text-base placeholder:text-riso-line focus:outline-2 focus:outline-offset-2 focus:outline-riso-blue'
 
-  // Logo misprint: the two inks slide in opposite directions as the pointer moves
   onMount(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const root = document.documentElement
@@ -32,16 +35,80 @@
     return () => window.removeEventListener('pointermove', onMove)
   })
 
-  function handleCreate() {
-    // TODO: Call backend to create room
-    mode = 'create'
+  async function handlePlayAsGuest() {
+    error = ''
+    busy = true
+    try {
+      const { user_id } = await createGuestUser()
+      mode = 'room-form'
+      dispatch('auth', { userId: user_id, userType: 'guest' })
+    } catch (e) {
+      error = e.message
+    } finally {
+      busy = false
+    }
   }
 
-  function handleJoin() {
-    mode = 'join'
+  function handleAuth() {
+    mode = 'auth-form'
+    authMode = 'register'
+    error = ''
+    username = ''
+    email = ''
+    password = ''
   }
 
-  async function submitCreate() {
+  async function submitRegister() {
+    error = ''
+    if (!username.trim()) {
+      error = 'Username is required'
+      return
+    }
+    if (!email.trim()) {
+      error = 'Email is required'
+      return
+    }
+    if (!password.trim()) {
+      error = 'Password is required'
+      return
+    }
+
+    busy = true
+    try {
+      const { user_id } = await registerUser(username.trim(), email.trim(), password)
+      mode = 'room-form'
+      dispatch('auth', { userId: user_id, userType: 'registered' })
+    } catch (e) {
+      error = e.message
+    } finally {
+      busy = false
+    }
+  }
+
+  async function submitLogin() {
+    error = ''
+    if (!username.trim()) {
+      error = 'Username is required'
+      return
+    }
+    if (!password.trim()) {
+      error = 'Password is required'
+      return
+    }
+
+    busy = true
+    try {
+      const { user_id } = await loginUser(username.trim(), password)
+      mode = 'room-form'
+      dispatch('auth', { userId: user_id, userType: 'registered' })
+    } catch (e) {
+      error = e.message
+    } finally {
+      busy = false
+    }
+  }
+
+  async function submitCreateRoom() {
     error = ''
     if (!playerName.trim()) {
       error = 'Please enter your name'
@@ -50,9 +117,12 @@
 
     busy = true
     try {
-      const { code, player_id } = await createRoom(playerName.trim())
-      dispatch('join', { code, name: playerName.trim(), playerId: player_id })
+      console.log('Creating room with name:', playerName.trim())
+      const result = await createRoom(playerName.trim())
+      console.log('Room created:', result)
+      dispatch('join', { code: result.code, name: playerName.trim(), playerId: result.player_id })
     } catch (e) {
+      console.error('Room creation failed:', e)
       error = e.message
     } finally {
       busy = false
@@ -79,10 +149,21 @@
   }
 
   function handleBack() {
-    mode = null
-    error = ''
-    roomCode = ''
-    playerName = ''
+    if (mode === 'room-form') {
+      mode = null
+      playerName = ''
+      roomCode = ''
+      error = ''
+    } else if (mode === 'auth-form') {
+      mode = null
+      username = ''
+      email = ''
+      password = ''
+      error = ''
+    } else {
+      mode = null
+      error = ''
+    }
   }
 </script>
 
@@ -97,63 +178,130 @@
     </div>
 
     <div class="flex w-full max-w-sm flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:gap-5">
-      <Button variant="pink" class="sm:min-w-52" on:click={handleCreate}>Create Room</Button>
-      <Button class="sm:min-w-52" on:click={handleJoin}>Join Room</Button>
+      <Button variant="pink" class="sm:min-w-52" disabled={busy} on:click={handlePlayAsGuest}>
+        {busy ? 'Joining…' : 'Play as Guest'}
+      </Button>
+      <Button class="sm:min-w-52" on:click={handleAuth}>Register / Login</Button>
     </div>
   </main>
-{:else}
+{:else if mode === 'auth-form'}
   <main class="flex min-h-dvh items-center justify-center px-4 py-8">
     <Card class="w-full max-w-sm">
-      {#if mode === 'create'}
+      {#if authMode === 'register'}
         <h2 class="mb-4 font-display text-2xl">
-          <span class="text-riso-pink mix-blend-multiply">Create</span> Room
+          <span class="text-riso-pink mix-blend-multiply">Create</span> Account
         </h2>
         <p class="mb-6 text-sm text-riso-muted">
-          Share your room code with friends. Everyone draws, someone is the imposter.
+          Save your profile for leaderboards and stats (optional for playing).
         </p>
 
-        <label for="name" class={labelClass}>Your Name</label>
-        <input id="name" type="text" bind:value={playerName} placeholder="Enter your name" maxlength="20" class={inputClass} />
+        <label for="reg-username" class={labelClass}>Username</label>
+        <input
+          id="reg-username"
+          type="text"
+          bind:value={username}
+          placeholder="3–20 characters"
+          maxlength="20"
+          class={inputClass} />
+
+        <label for="reg-email" class={labelClass}>Email</label>
+        <input
+          id="reg-email"
+          type="email"
+          bind:value={email}
+          placeholder="your@email.com"
+          class={inputClass} />
+
+        <label for="reg-password" class={labelClass}>Password</label>
+        <input
+          id="reg-password"
+          type="password"
+          bind:value={password}
+          placeholder="6+ characters"
+          class={inputClass} />
 
         {#if error}
           <p class="mt-3 font-stamp text-sm text-riso-stamp" role="alert">{error}</p>
         {/if}
 
         <div class="mt-8 flex gap-3">
-          <Button variant="blue" class="min-w-0 flex-1" disabled={busy} on:click={submitCreate}>
+          <Button variant="blue" class="min-w-0 flex-1" disabled={busy} on:click={submitRegister}>
             {busy ? 'Creating…' : 'Create'}
           </Button>
           <Button class="min-w-0 flex-1" on:click={handleBack}>Back</Button>
         </div>
+
+        <button type="button" on:click={() => (authMode = 'login')} class="mt-4 text-sm text-riso-blue underline hover:no-underline">
+          Already have an account? Login
+        </button>
       {:else}
-        <h2 class="mb-6 font-display text-2xl">
-          <span class="text-riso-blue mix-blend-multiply">Join</span> Room
+        <h2 class="mb-4 font-display text-2xl">
+          <span class="text-riso-blue mix-blend-multiply">Login</span>
         </h2>
+        <p class="mb-6 text-sm text-riso-muted">
+          Access your account and see your stats.
+        </p>
 
-        <div class="mb-6">
-          <label for="code" class={labelClass}>Room Code</label>
-          <input
-            id="code"
-            type="text"
-            bind:value={roomCode}
-            placeholder="ABCD"
-            maxlength="4"
-            autocapitalize="characters"
-            class="{inputClass} pl-[0.5em] text-center font-stamp text-3xl font-bold uppercase tracking-[0.5em]" />
-        </div>
+        <label for="login-username" class={labelClass}>Username</label>
+        <input
+          id="login-username"
+          type="text"
+          bind:value={username}
+          placeholder="Enter your username"
+          class={inputClass} />
 
-        <label for="joinname" class={labelClass}>Your Name</label>
-        <input id="joinname" type="text" bind:value={playerName} placeholder="Enter your name" maxlength="20" class={inputClass} />
+        <label for="login-password" class={labelClass}>Password</label>
+        <input
+          id="login-password"
+          type="password"
+          bind:value={password}
+          placeholder="Enter your password"
+          class={inputClass} />
 
         {#if error}
           <p class="mt-3 font-stamp text-sm text-riso-stamp" role="alert">{error}</p>
         {/if}
 
         <div class="mt-8 flex gap-3">
-          <Button variant="blue" class="min-w-0 flex-1" on:click={submitJoin}>Join</Button>
+          <Button variant="blue" class="min-w-0 flex-1" disabled={busy} on:click={submitLogin}>
+            {busy ? 'Logging in…' : 'Login'}
+          </Button>
           <Button class="min-w-0 flex-1" on:click={handleBack}>Back</Button>
         </div>
+
+        <button type="button" on:click={() => (authMode = 'register')} class="mt-4 text-sm text-riso-blue underline hover:no-underline">
+          Don't have an account? Register
+        </button>
       {/if}
+    </Card>
+  </main>
+{:else if mode === 'room-form'}
+  <main class="flex min-h-dvh items-center justify-center px-4 py-8">
+    <Card class="w-full max-w-sm">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="font-display text-2xl">
+          <span class="text-riso-pink mix-blend-multiply">Create</span> Room
+        </h2>
+        <button type="button" on:click={() => (playerName = '')} class="text-sm text-riso-muted hover:text-riso-ink">Create Another</button>
+      </div>
+
+      <p class="mb-6 text-sm text-riso-muted">
+        Share your room code with friends. Everyone draws, someone is the imposter.
+      </p>
+
+      <label for="name" class={labelClass}>Your Name (for this game)</label>
+      <input id="name" type="text" bind:value={playerName} placeholder="Enter your name" maxlength="20" class={inputClass} />
+
+      {#if error}
+        <p class="mt-3 font-stamp text-sm text-riso-stamp" role="alert">{error}</p>
+      {/if}
+
+      <div class="mt-8 flex gap-3">
+        <Button variant="blue" class="min-w-0 flex-1" disabled={busy} on:click={submitCreateRoom}>
+          {busy ? 'Creating…' : 'Create'}
+        </Button>
+        <Button class="min-w-0 flex-1" on:click={handleBack}>Back</Button>
+      </div>
     </Card>
   </main>
 {/if}

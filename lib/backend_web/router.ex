@@ -9,6 +9,9 @@ defmodule BackendWeb.Router do
   scope "/api", BackendWeb do
     pipe_through :api
 
+    post "/users/guest", UserController, :create_guest
+    post "/users/register", UserController, :register
+    post "/users/login", UserController, :login
     post "/rooms", RoomController, :create
   end
 
