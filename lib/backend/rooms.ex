@@ -25,6 +25,25 @@ defmodule Backend.Rooms do
     end
   end
 
+  @doc """
+  Join an existing room as a new player.
+
+  Returns `{:ok, %{code: code, player_id: id}}` or `{:error, reason}` where reason is one of
+  `:name_required`, `:name_too_long`, `:room_not_found`, `:room_full`, `:name_taken`, `:game_in_progress`.
+  """
+  def join_room(code, name) do
+    with {:ok, name} <- validate_name(name),
+         player_id = new_player_id(),
+         {:ok, room} <- RoomServer.join(normalize_code(code), player_id, name) do
+      {:ok, %{code: room.code, player_id: player_id}}
+    end
+  end
+
+  @doc "Get `{:room_updated, room}` messages in this process whenever the room changes."
+  def subscribe(code) do
+    Phoenix.PubSub.subscribe(Backend.PubSub, "rooms:" <> normalize_code(code))
+  end
+
   @doc "Returns `{:ok, room}` only if `player_id` is a member of the room."
   def fetch_member_room(code, player_id) do
     with {:ok, room} <- RoomServer.get_state(normalize_code(code)) do

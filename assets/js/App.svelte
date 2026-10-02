@@ -1,29 +1,93 @@
 <script>
+  import { onMount } from 'svelte'
   import Home from './pages/Home.svelte'
+  import Auth from './pages/Auth.svelte'
+  import Dashboard from './pages/Dashboard.svelte'
   import Lobby from './pages/Lobby.svelte'
+  import { loadUser, saveUser, clearUser, loadSeat, saveSeat, clearSeat } from './lib/session.js'
 
-  let currentPage = 'home'
-  let roomCode = null
-  let playerName = null
-  let playerId = null
+  let user = loadUser()
+  let seat = loadSeat()
+  let inviteCode = ''
+  let notice = ''
+  let authMode = 'register'
 
-  function handleJoinRoom(e) {
-    roomCode = e.detail.code
-    playerName = e.detail.name
-    playerId = e.detail.playerId ?? null
-    currentPage = 'lobby'
+  // /room/ABCD is a shareable invite link
+  const match = location.pathname.match(/^\/room\/([A-Za-z]{4})\/?$/)
+  const pathCode = match ? match[1].toUpperCase() : ''
+
+  // 'home' (new visitor) | 'auth' | 'dashboard' (signed in) | 'lobby'
+  let view
+  if (seat && (!pathCode || pathCode === seat.code)) {
+    view = 'lobby'
+  } else {
+    seat = null
+    inviteCode = pathCode
+    view = user ? 'dashboard' : 'home'
   }
 
-  function handleBackHome() {
-    currentPage = 'home'
-    roomCode = null
-    playerName = null
-    playerId = null
+  $: document.title = view === 'lobby' ? `Room ${seat.code} · Sketchy` : 'Sketchy'
+
+  onMount(() => {
+    // browser Back from /room/ABCD means "I'm leaving"
+    const onPop = () => view === 'lobby' && leave()
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  })
+
+  function home() {
+    view = user ? 'dashboard' : 'home'
+  }
+
+  function authed({ detail }) {
+    user = detail
+    saveUser(user)
+    notice = ''
+    view = 'dashboard'
+  }
+
+  function openAuth({ detail }) {
+    authMode = detail
+    view = 'auth'
+  }
+
+  function logout() {
+    clearUser()
+    clearSeat()
+    user = null
+    seat = null
+    view = 'home'
+  }
+
+  function enter({ detail: { code, playerId, name } }) {
+    if (user?.userType === 'guest' && user.name !== name) {
+      user = { ...user, name }
+      saveUser(user)
+    }
+    seat = { code, playerId }
+    saveSeat(seat)
+    inviteCode = ''
+    notice = ''
+    history.pushState({}, '', `/room/${code}`)
+    view = 'lobby'
+  }
+
+  function leave(message = '') {
+    clearSeat()
+    seat = null
+    inviteCode = ''
+    notice = typeof message === 'string' ? message : ''
+    history.replaceState({}, '', '/')
+    home()
   }
 </script>
 
-{#if currentPage === 'home'}
-  <Home on:join={handleJoinRoom} />
-{:else if currentPage === 'lobby'}
-  <Lobby {roomCode} {playerName} {playerId} on:back={handleBackHome} />
+{#if view === 'lobby'}
+  <Lobby roomCode={seat.code} playerId={seat.playerId} on:leave={() => leave()} on:gone={e => leave(e.detail)} />
+{:else if view === 'auth'}
+  <Auth mode={authMode} on:authed={authed} on:back={home} />
+{:else if view === 'dashboard'}
+  <Dashboard {user} {inviteCode} {notice} on:enter={enter} on:auth={openAuth} on:logout={logout} />
+{:else}
+  <Home {inviteCode} on:authed={authed} on:auth={openAuth} />
 {/if}

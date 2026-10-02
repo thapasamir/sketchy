@@ -13,6 +13,7 @@ defmodule BackendWeb.Router do
     post "/users/register", UserController, :register
     post "/users/login", UserController, :login
     post "/rooms", RoomController, :create
+    post "/rooms/:code/join", RoomController, :join
   end
 
   # Everything else gets the Svelte app (/, /room/ABCD, ...)

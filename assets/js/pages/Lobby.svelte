@@ -8,11 +8,10 @@
   const dispatch = createEventDispatcher()
 
   export let roomCode = ''
-  export let playerName = ''
-  export let playerId = null // set when you created the room; null for the not-yet-built join flow
+  export let playerId
 
-  // 'connecting' | 'live' | 'error' | 'preview'
-  let status = playerId ? 'connecting' : 'preview'
+  // 'connecting' | 'live' | 'error'
+  let status = 'connecting'
   let errorMessage = ''
   let room = null
   let channel = null
@@ -20,29 +19,50 @@
   let rounds = 3
   let drawTime = 60
 
-  // The server's room state is the source of truth. In preview mode (join flow not built yet)
-  // we fake a one-player room so the screen still renders.
-  $: players = room ? room.players : [{ id: 'preview', name: playerName }]
-  $: hostId = room ? room.host_id : 'preview'
+  // The server's room state is the source of truth; every update replaces it wholesale.
+  $: players = room ? room.players : []
+  $: hostId = room?.host_id
   $: code = room ? room.code : roomCode
 
   const reasons = {
-    room_not_found: 'This room has closed.',
-    not_a_member: 'You are not a player in this room.',
+    room_not_found: 'That room has closed. Start a new one or join another.',
+    not_a_member: "You're not a player in that room.",
     timeout: 'Could not reach the server. Check your connection and try again.',
   }
 
-  onMount(() => {
-    if (!playerId) return
+  let copied = ''
 
+  async function copy(text, key) {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const box = document.createElement('textarea')
+      box.value = text
+      document.body.append(box)
+      box.select()
+      document.execCommand('copy')
+      box.remove()
+    }
+    copied = key
+    setTimeout(() => copied === key && (copied = ''), 1500)
+  }
+
+  onMount(() => {
     channel = joinRoom(roomCode, playerId, {
       onJoined: r => {
         room = r
         status = 'live'
       },
+      onUpdate: r => (room = r),
       onError: reason => {
-        errorMessage = reasons[reason] || 'Could not connect to the room.'
-        status = 'error'
+        const message = reasons[reason] || 'Could not connect to the room.'
+        // A closed room or a seat that isn't yours can't be fixed by retrying: go home and say why.
+        if (reason === 'timeout') {
+          errorMessage = message
+          status = 'error'
+        } else {
+          dispatch('gone', message)
+        }
       },
     })
   })
@@ -55,24 +75,21 @@
 <main class="mx-auto flex min-h-dvh w-full max-w-4xl flex-col gap-8 px-4 py-6 sm:py-8">
   <header class="flex items-center justify-between gap-4">
     <Wordmark class="text-3xl sm:text-4xl" />
-    <Button class="px-4 py-2.5 font-stamp text-sm sm:px-6" on:click={() => dispatch('back')}>← Leave</Button>
+    <Button class="px-4 py-2.5 font-stamp text-sm sm:px-6" on:click={() => dispatch('leave')}>← Leave</Button>
   </header>
 
   {#if status === 'error'}
     <Card class="mx-auto w-full max-w-sm text-center">
       <h3 class="mb-3 font-display text-2xl">Oops</h3>
       <p class="mb-6 text-riso-muted" role="alert">{errorMessage}</p>
-      <Button variant="blue" class="w-full" on:click={() => dispatch('back')}>Back to start</Button>
+      <div class="flex gap-3">
+        <Button variant="blue" class="min-w-0 flex-1" on:click={() => location.reload()}>Try again</Button>
+        <Button class="min-w-0 flex-1" on:click={() => dispatch('leave')}>Leave</Button>
+      </div>
     </Card>
   {:else if status === 'connecting'}
     <p class="text-center font-stamp text-riso-muted">Opening room…</p>
   {:else}
-    {#if status === 'preview'}
-      <p class="border-2 border-dashed border-riso-line p-3 text-center font-stamp text-sm text-riso-muted">
-        Joining a room isn't built yet. This is a preview.
-      </p>
-    {/if}
-
     <div class="grid gap-6 md:grid-cols-2">
       <Card>
         <h3 class="mb-5 font-display text-2xl sm:text-3xl">Room Code</h3>
@@ -83,6 +100,18 @@
             class="pl-[0.2em] font-display text-4xl tracking-[0.2em] text-riso-pink mix-blend-multiply sm:text-5xl">
             {code}
           </div>
+        </div>
+
+        <div class="mt-3 flex gap-3">
+          <Button class="min-w-0 flex-1 px-3 py-2.5 font-stamp text-sm" on:click={() => copy(code, 'code')}>
+            {copied === 'code' ? 'Copied!' : 'Copy code'}
+          </Button>
+          <Button
+            variant="blue"
+            class="min-w-0 flex-1 px-3 py-2.5 font-stamp text-sm"
+            on:click={() => copy(`${location.origin}/room/${code}`, 'link')}>
+            {copied === 'link' ? 'Copied!' : 'Copy invite link'}
+          </Button>
         </div>
 
         <h3 class="mb-4 mt-8 font-display text-2xl sm:text-3xl">Players ({players.length})</h3>

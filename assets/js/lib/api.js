@@ -8,7 +8,7 @@ async function apiCall(endpoint, body) {
   })
 
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || data.message || 'Request failed')
+  if (!res.ok) throw new Error(data.message || data.error || 'Request failed')
 
   return data
 }
@@ -27,4 +27,8 @@ export async function loginUser(username, password) {
 
 export async function createRoom(name) {
   return apiCall('/api/rooms', { name })
+}
+
+export async function joinRoom(code, name) {
+  return apiCall(`/api/rooms/${encodeURIComponent(code)}/join`, { name })
 }

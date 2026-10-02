@@ -24,7 +24,7 @@ defmodule Backend.Rooms.RoomServer do
 
   def get_state(code), do: call(code, :get_state)
 
-  def add_player(code, player_id, name), do: call(code, {:add_player, player_id, name})
+  def join(code, player_id, name), do: call(code, {:join, player_id, name})
 
   # Registry.lookup is a cheap in-memory lookup: code -> pid
   defp call(code, message) do
@@ -65,8 +65,22 @@ defmodule Backend.Rooms.RoomServer do
     {:reply, {:ok, room}, room}
   end
 
-  def handle_call({:add_player, player_id, name}, _from, room) do
-    room = Room.add_player(room, player_id, name)
-    {:reply, {:ok, room}, room}
+  # Check-and-add happens inside ONE message, so two people grabbing the last seat or the same
+  # name at the same moment are handled one after the other. The second one is told no.
+  def handle_call({:join, player_id, name}, _from, room) do
+    case Room.join(room, player_id, name) do
+      {:ok, room} ->
+        broadcast(room)
+        {:reply, {:ok, room}, room}
+
+      {:error, _reason} = error ->
+        {:reply, error, room}
+    end
+  end
+
+  # Tell everyone watching this room. PubSub = "publish to a topic, every subscriber gets a copy".
+  # The room process doesn't know or care who is listening (channels, tests, ...).
+  defp broadcast(room) do
+    Phoenix.PubSub.broadcast(Backend.PubSub, "rooms:" <> room.code, {:room_updated, room})
   end
 end

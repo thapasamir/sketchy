@@ -1,25 +1,40 @@
-// Remembers who you are in this browser, so a refresh doesn't create a new guest.
-const KEY = 'sketchy:user'
+// What this browser remembers: who you are, and which room you are sitting in.
+const USER = 'sketchy:user'
+const SEAT = 'sketchy:seat'
 
-export function loadUser() {
+function read(key) {
   try {
-    const user = JSON.parse(localStorage.getItem(KEY))
-    return user && user.userId && user.userType ? user : null
+    return JSON.parse(localStorage.getItem(key))
   } catch {
     return null
   }
 }
 
-export function saveUser(user) {
+function write(key, value) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(user))
+    localStorage.setItem(key, JSON.stringify(value))
   } catch {
     // storage blocked (private mode): the game still works, you just won't be remembered
   }
 }
 
-export function clearUser() {
+function remove(key) {
   try {
-    localStorage.removeItem(KEY)
+    localStorage.removeItem(key)
   } catch {}
 }
+
+export function loadUser() {
+  const user = read(USER)
+  return user && user.userId && user.userType ? user : null
+}
+export const saveUser = user => write(USER, user)
+export const clearUser = () => remove(USER)
+
+// A "seat" is your place in a room: enough to walk back in after a refresh.
+export function loadSeat() {
+  const seat = read(SEAT)
+  return seat && seat.code && seat.playerId ? seat : null
+}
+export const saveSeat = seat => write(SEAT, seat)
+export const clearSeat = () => remove(SEAT)

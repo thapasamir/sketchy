@@ -6,6 +6,8 @@ defmodule Backend.Rooms.Room do
   `Backend.Rooms.RoomServer` is the process that holds the current value.
   """
 
+  @max_players 8
+
   defstruct code: nil,
             host_id: nil,
             phase: :lobby,
@@ -29,6 +31,24 @@ defmodule Backend.Rooms.Room do
   def add_player(%__MODULE__{} = room, player_id, name) do
     player = %{id: player_id, name: name, connected?: true, joined_at: DateTime.utc_now()}
     %{room | players: Map.put(room.players, player_id, player)}
+  end
+
+  @doc """
+  The rules for joining, kept pure so they are trivial to test.
+  Returns `{:ok, room}` or `{:error, reason}`.
+  """
+  def join(%__MODULE__{} = room, player_id, name) do
+    cond do
+      room.phase != :lobby -> {:error, :game_in_progress}
+      player_count(room) >= @max_players -> {:error, :room_full}
+      name_taken?(room, name) -> {:error, :name_taken}
+      true -> {:ok, add_player(room, player_id, name)}
+    end
+  end
+
+  def name_taken?(%__MODULE__{} = room, name) do
+    wanted = String.downcase(name)
+    Enum.any?(room.players, fn {_id, p} -> String.downcase(p.name) == wanted end)
   end
 
   def member?(%__MODULE__{} = room, player_id), do: Map.has_key?(room.players, player_id)

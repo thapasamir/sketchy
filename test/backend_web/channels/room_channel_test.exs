@@ -31,4 +31,13 @@ defmodule BackendWeb.RoomChannelTest do
     {:ok, %{code: code}} = Rooms.create_room("Samir")
     assert {:error, %{reason: "player_id_required"}} = join_room("room:" <> code, %{})
   end
+
+  test "an already-joined player is pushed the new player list when someone joins" do
+    {:ok, %{code: code, player_id: id}} = Rooms.create_room("Samir")
+    {:ok, _reply, _socket} = join_room("room:" <> code, %{"player_id" => id})
+
+    {:ok, _} = Rooms.join_room(code, "Priya")
+
+    assert_push "room_updated", %{room: %{players: [%{name: "Samir"}, %{name: "Priya"}]}}
+  end
 end
