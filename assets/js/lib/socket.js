@@ -17,7 +17,8 @@ export function joinRoom(code, playerId, { onJoined, onUpdate, onDraw, onKicked,
   const channel = getSocket().channel(`room:${code}`, { player_id: playerId })
 
   // The server pushes the full room whenever it changes (someone joins, settings change, ...)
-  channel.on('room_updated', ({ room, secret }) => onUpdate(room, secret))
+  // `vote` is who THIS player voted for; the server tells nobody else
+  channel.on('room_updated', ({ room, secret, vote }) => onUpdate(room, secret, vote))
   channel.on('kicked', () => onKicked())
 
   // Strokes from whoever is drawing: start / points / end / undo. They arrive many times a second.
@@ -26,7 +27,7 @@ export function joinRoom(code, playerId, { onJoined, onUpdate, onDraw, onKicked,
   channel
     .join()
     // `strokes` is the picture so far, for someone who joins or refreshes mid-game
-    .receive('ok', ({ room, secret, strokes }) => onJoined(room, secret, strokes))
+    .receive('ok', ({ room, secret, strokes, vote }) => onJoined(room, secret, strokes, vote))
     .receive('error', ({ reason }) => onError(reason))
     .receive('timeout', () => onError('timeout'))
 

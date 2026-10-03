@@ -19,6 +19,8 @@
   // What THIS player may know about the round (the word, or the imposter's hint). The server
   // sends it only to this player; it is never part of the shared room.
   let secret = null
+  // who I voted for (only the server and I know)
+  let vote = null
   let channel = null
   // the shared picture; lives here (not in the board) so strokes aren't lost between screens
   const strokes = createStrokeStore()
@@ -34,7 +36,7 @@
   $: minPlayers = room?.min_players ?? 3
   $: playing = !!room && room.phase !== 'lobby'
   $: revealing = room?.phase === 'reveal'
-  $: inGame = room?.phase === 'drawing' || room?.phase === 'voting'
+  $: inGame = ['drawing', 'voting', 'guess', 'result'].includes(room?.phase)
 
   // countdown while everyone reads their card
   let secondsLeft = 0
@@ -80,19 +82,26 @@
     invalid_settings: "Those settings aren't allowed.",
     not_enough_players: `Need at least ${minPlayers} connected players to start.`,
     game_in_progress: 'The game has already started.',
+    not_voting: 'The voting is over.',
+    cannot_vote_self: "You can't vote for yourself.",
+    not_imposter: 'Only the imposter can guess.',
+    invalid_guess: 'Type a word or two.',
+    not_guessing: 'The guessing is over.',
   }
 
   onMount(() => {
     channel = joinRoom(roomCode, playerId, {
-      onJoined: (r, s, picture) => {
+      onJoined: (r, s, picture, v) => {
         room = r
         secret = s
+        vote = v
         strokes.load(picture)
         status = 'live'
       },
-      onUpdate: (r, s) => {
+      onUpdate: (r, s, v) => {
         room = r
         secret = s
+        vote = v
       },
       onDraw: event => strokes.apply(event),
       onKicked: () => dispatch('gone', 'The host removed you from the room.'),
@@ -163,6 +172,13 @@
 
   const finishTurn = () => channel.push('finish_turn', {})
 
+  function castVote(targetId) {
+    vote = targetId // show it at once; the server's answer arrives right behind
+    send('vote', { target_id: targetId })
+  }
+
+  const submitGuess = text => send('guess', { text })
+
   // a complaint about one turn shouldn't follow you into the next
   $: turnKey = room?.turn ? `${room.turn.player_id}:${room.turn.lap}` : ''
   $: if (turnKey !== undefined) drawError = ''
@@ -228,7 +244,10 @@
         send={sendStroke}
         {undo}
         {finishTurn}
-        error={drawError} />
+        {vote}
+        {castVote}
+        {submitGuess}
+        error={drawError || actionError} />
     {:else}
     <div class="grid gap-6 md:grid-cols-2">
       <Card>
