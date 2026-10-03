@@ -17,12 +17,12 @@ export function joinRoom(code, playerId, { onJoined, onUpdate, onKicked, onError
   const channel = getSocket().channel(`room:${code}`, { player_id: playerId })
 
   // The server pushes the full room whenever it changes (someone joins, settings change, ...)
-  channel.on('room_updated', ({ room }) => onUpdate(room))
+  channel.on('room_updated', ({ room, secret }) => onUpdate(room, secret))
   channel.on('kicked', () => onKicked())
 
   channel
     .join()
-    .receive('ok', ({ room }) => onJoined(room))
+    .receive('ok', ({ room, secret }) => onJoined(room, secret))
     .receive('error', ({ reason }) => onError(reason))
     .receive('timeout', () => onError('timeout'))
 

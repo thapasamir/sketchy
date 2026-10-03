@@ -32,3 +32,6 @@ config :phoenix,
 
 # A disconnected player keeps their seat this long (default 30s). Short so tests can see it expire.
 config :backend, reconnect_grace_ms: 300
+
+# the reveal lasts 8s in the real game; short here so tests can watch it end
+config :backend, reveal_ms: 200

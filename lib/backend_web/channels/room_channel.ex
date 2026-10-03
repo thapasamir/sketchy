@@ -15,7 +15,10 @@ defmodule BackendWeb.RoomChannel do
     case Rooms.connect(code, player_id, self()) do
       {:ok, room} ->
         socket = assign(socket, room_code: room.code, player_id: player_id)
-        {:ok, %{room: Room.to_public(room), you: player_id}, socket}
+
+        {:ok,
+         %{room: Room.to_public(room), secret: Room.secret_for(room, player_id), you: player_id},
+         socket}
 
       {:error, reason} ->
         {:error, %{reason: Atom.to_string(reason)}}
@@ -73,7 +76,12 @@ defmodule BackendWeb.RoomChannel do
   def handle_info({:player_kicked, _someone_else}, socket), do: {:noreply, socket}
 
   def handle_info({:room_updated, room}, socket) do
-    push(socket, "room_updated", %{room: Room.to_public(room)})
+    # `room` is the same for everyone; `secret` is computed per socket from THIS player's id
+    push(socket, "room_updated", %{
+      room: Room.to_public(room),
+      secret: Room.secret_for(room, socket.assigns.player_id)
+    })
+
     {:noreply, socket}
   end
 end

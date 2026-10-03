@@ -86,7 +86,9 @@ defmodule Backend.Rooms do
 
   defp start_room(host, attempts_left) do
     code = generate_code()
-    spec = {RoomServer, code: code, host: host, grace_ms: grace_ms()}
+
+    spec =
+      {RoomServer, code: code, host: host, grace_ms: grace_ms(), reveal_ms: reveal_ms()}
 
     case DynamicSupervisor.start_child(Backend.RoomSupervisor, spec) do
       {:ok, _pid} -> {:ok, %{code: code, player_id: host.id}}
@@ -97,6 +99,9 @@ defmodule Backend.Rooms do
 
   # How long a disconnected player keeps their seat (config/test.exs shortens it for tests)
   defp grace_ms, do: Application.get_env(:backend, :reconnect_grace_ms, 30_000)
+
+  # How long everyone looks at their card before drawing starts
+  defp reveal_ms, do: Application.get_env(:backend, :reveal_ms, 8_000)
 
   defp validate_name(name) when is_binary(name) do
     trimmed = String.trim(name)

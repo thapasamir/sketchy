@@ -79,3 +79,7 @@ config :phoenix, :plug_init_mode, :runtime
 #   RECONNECT_GRACE_MS=2500 mix phx.server
 config :backend,
   reconnect_grace_ms: String.to_integer(System.get_env("RECONNECT_GRACE_MS", "30000"))
+
+# Seconds everyone looks at their card before drawing starts (default 8s):
+#   REVEAL_MS=2000 mix phx.server
+config :backend, reveal_ms: String.to_integer(System.get_env("REVEAL_MS", "8000"))

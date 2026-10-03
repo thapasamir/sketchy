@@ -2,7 +2,7 @@ defmodule Backend.RoomsTest do
   use ExUnit.Case, async: true
 
   alias Backend.Rooms
-  alias Backend.Rooms.RoomServer
+  alias Backend.Rooms.{Room, RoomServer}
 
   describe "create_room/1" do
     test "starts a room with the creator as host and only player" do
@@ -312,11 +312,40 @@ defmodule Backend.RoomsTest do
       {:ok, _} = Rooms.set_ready(code, p2, true)
       {:ok, _} = Rooms.set_ready(code, p3, true)
 
-      assert {:ok, %{phase: :playing}} = Rooms.start_game(code, host)
+      assert {:ok, %{phase: :reveal}} = Rooms.start_game(code, host)
       assert {:error, :game_in_progress} = Rooms.start_game(code, host)
       assert {:error, :game_in_progress} = Rooms.update_settings(code, host, %{"rounds" => 4})
       assert {:error, :game_in_progress} = Rooms.join_room(code, "Late")
       assert {:error, :not_host} = Rooms.update_settings(code, p2, %{"rounds" => 4})
+    end
+
+    test "starting deals exactly one imposter, and only the imposter lacks the word", %{
+      code: code,
+      host: host,
+      p2: p2,
+      p3: p3
+    } do
+      {:ok, _} = Rooms.set_ready(code, p2, true)
+      {:ok, _} = Rooms.set_ready(code, p3, true)
+      {:ok, room} = Rooms.start_game(code, host)
+
+      secrets = for id <- [host, p2, p3], do: Room.secret_for(room, id)
+      assert Enum.count(secrets, &(&1.role == "imposter")) == 1
+      assert [%{word: word}] = secrets |> Enum.filter(&(&1.role == "crew")) |> Enum.uniq()
+      assert Enum.all?(secrets, &(&1.category == hd(secrets).category))
+
+      imposter = Enum.find(secrets, &(&1.role == "imposter"))
+      refute word in [imposter.hint, imposter.category]
+    end
+
+    test "the reveal ends by itself and drawing begins", %{code: code, host: host, p2: p2, p3: p3} do
+      Rooms.subscribe(code)
+      {:ok, _} = Rooms.set_ready(code, p2, true)
+      {:ok, _} = Rooms.set_ready(code, p3, true)
+      {:ok, _} = Rooms.start_game(code, host)
+
+      assert_receive {:room_updated, %{phase: :reveal}}
+      assert_receive {:room_updated, %{phase: :drawing}}, 2000
     end
 
     test "starting needs enough connected players" do

@@ -7,6 +7,9 @@ defmodule Backend.Application do
 
   @impl true
   def start(_type, _args) do
+    # the word list lives in memory for the whole life of the app
+    :ok = Backend.Words.load!()
+
     children = [
       BackendWeb.Telemetry,
       Backend.Repo,

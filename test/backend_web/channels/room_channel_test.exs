@@ -75,7 +75,34 @@ defmodule BackendWeb.RoomChannelTest do
 
       ref = push(socket, "start", %{})
       assert_reply ref, :ok
-      assert_push "room_updated", %{room: %{phase: :playing}}
+      assert_push "room_updated", %{room: %{phase: :reveal}}
+    end
+
+    test "the imposter is pushed a hint, never the word (the real per-socket check is in the browser test)",
+         %{
+           host: host,
+           p2: p2,
+           p3: p3,
+           code: code
+         } do
+      assert_reply push(p2, "set_ready", %{"ready" => true}), :ok
+      assert_reply push(p3, "set_ready", %{"ready" => true}), :ok
+      assert_reply push(host, "start", %{}), :ok
+
+      {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
+      imposter_id = room.game.imposter_id
+      word = room.game.entry.word
+
+      # all three sockets share this test process, so look at every secret that was pushed
+      secrets = for secret <- collect_secrets(), do: secret
+      assert Enum.count(secrets, &(&1.role == "imposter")) == 1
+
+      for %{role: "imposter"} = secret <- secrets do
+        refute inspect(secret) =~ word
+        assert Map.has_key?(secret, :hint)
+      end
+
+      assert imposter_id in Map.keys(room.players)
     end
 
     test "the host can't mark themselves ready", %{host: socket} do
@@ -102,6 +129,15 @@ defmodule BackendWeb.RoomChannelTest do
       assert_push "room_updated", %{room: %{players: [_, _]}}
       assert {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
       assert map_size(room.players) == 2
+    end
+  end
+
+  defp collect_secrets(acc \\ []) do
+    receive do
+      %Phoenix.Socket.Message{event: "room_updated", payload: %{secret: %{} = secret}} ->
+        collect_secrets([secret | acc])
+    after
+      200 -> acc |> Enum.uniq()
     end
   end
 end

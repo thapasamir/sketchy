@@ -19,7 +19,7 @@ defmodule Backend.Rooms.RoomServer do
 
   require Logger
 
-  alias Backend.Rooms.Room
+  alias Backend.Rooms.{Dealer, Room}
 
   # --- Client API: runs in the CALLER's process ---
 
@@ -74,6 +74,7 @@ defmodule Backend.Rooms.RoomServer do
   #   grace_ms - how long an away player keeps their seat
   #   monitors - %{monitor_ref => player_id}, one entry per live channel connection
   #   expiry   - %{player_id => {token, timer}}, a pending "remove if still away" timer
+  #   reveal_ms / phase_timer - how long the reveal lasts, and its pending {token, timer}
 
   @impl true
   def init(opts) do
@@ -81,7 +82,16 @@ defmodule Backend.Rooms.RoomServer do
     host = Keyword.fetch!(opts, :host)
 
     room = code |> Room.new(host.id) |> Room.add_player(host.id, host.name)
-    state = %{room: room, grace_ms: Keyword.fetch!(opts, :grace_ms), monitors: %{}, expiry: %{}}
+    room = %{room | reveal_ms: Keyword.fetch!(opts, :reveal_ms)}
+
+    state = %{
+      room: room,
+      grace_ms: Keyword.fetch!(opts, :grace_ms),
+      reveal_ms: Keyword.fetch!(opts, :reveal_ms),
+      phase_timer: nil,
+      monitors: %{},
+      expiry: %{}
+    }
 
     Logger.info("Room #{code} created by #{host.name}")
     # The host isn't connected until their channel joins. If that never happens, the room closes.
@@ -156,8 +166,18 @@ defmodule Backend.Rooms.RoomServer do
     end
   end
 
+  # The server does the dealing (random word + random imposter). Room only checks the rules
+  # and, if they pass, stores the deal. A refused start just throws the deal away.
   def handle_call({:start_game, player_id}, _from, state) do
-    apply_change(state, Room.start_game(state.room, player_id))
+    case Room.start_game(state.room, player_id, Dealer.deal(state.room)) do
+      {:ok, room} ->
+        state = state |> put_room(room) |> schedule_reveal_end()
+        broadcast(room)
+        {:reply, {:ok, room}, state}
+
+      {:error, _reason} = error ->
+        {:reply, error, state}
+    end
   end
 
   # A channel process died. If that was the player's last connection they are now "away".
@@ -183,6 +203,20 @@ defmodule Backend.Rooms.RoomServer do
         end
     end
   end
+
+  # The reveal is over: everyone has had time to read their card, so drawing starts.
+  def handle_info({:end_reveal, token}, %{phase_timer: {token, _timer}} = state) do
+    case Room.end_reveal(state.room) do
+      {:ok, room} ->
+        broadcast(room)
+        {:noreply, %{put_room(state, room) | phase_timer: nil}}
+
+      {:error, _reason} ->
+        {:noreply, %{state | phase_timer: nil}}
+    end
+  end
+
+  def handle_info({:end_reveal, _stale_token}, state), do: {:noreply, state}
 
   # The grace period ended. The token check ignores a timer that a reconnect has since replaced.
   def handle_info({:expire, player_id, token}, state) do
@@ -231,6 +265,12 @@ defmodule Backend.Rooms.RoomServer do
       broadcast(room)
       {:open, state}
     end
+  end
+
+  defp schedule_reveal_end(state) do
+    token = make_ref()
+    timer = Process.send_after(self(), {:end_reveal, token}, state.reveal_ms)
+    %{state | phase_timer: {token, timer}}
   end
 
   defp schedule_expiry(state, player_id) do

@@ -16,6 +16,9 @@ defmodule Backend.Rooms.Room do
             phase: :lobby,
             players: %{},
             settings: %{rounds: 3, draw_time: 60},
+            # The secret part of a round (word, imposter). NEVER put this in `to_public/1`.
+            game: nil,
+            reveal_ms: 8_000,
             created_at: nil
 
   @type t :: %__MODULE__{
@@ -123,13 +126,49 @@ defmodule Backend.Rooms.Room do
     end
   end
 
-  @doc "Host-only. Moves the room out of the lobby once enough players are connected."
-  def start_game(%__MODULE__{} = room, player_id) do
+  @doc """
+  Host-only. Starts the game once enough players are connected and ready. `deal` is the secret
+  for the round (see `Backend.Rooms.Dealer`); it is passed in so this function stays pure.
+  The room moves to the `:reveal` phase, where everyone looks at their own card.
+  """
+  def start_game(%__MODULE__{} = room, player_id, deal) do
     with :ok <- check_host(room, player_id),
          :ok <- check_lobby(room),
          :ok <- check_enough_players(room),
          :ok <- check_everyone_ready(room) do
-      {:ok, %{room | phase: :playing}}
+      game = %{
+        round: 1,
+        imposter_id: deal.imposter_id,
+        imposter_history: deal.imposter_history,
+        entry: deal.entry,
+        hint: deal.hint,
+        used_words: deal.used_words
+      }
+
+      {:ok, %{room | phase: :reveal, game: game}}
+    end
+  end
+
+  @doc "Move on from the reveal to the drawing phase."
+  def end_reveal(%__MODULE__{phase: :reveal} = room), do: {:ok, %{room | phase: :drawing}}
+  def end_reveal(%__MODULE__{}), do: {:error, :not_revealing}
+
+  @doc """
+  What THIS player is allowed to know about the round, or nil in the lobby.
+  The imposter gets the category and one hint, never the word. Everyone else gets the word.
+  """
+  def secret_for(%__MODULE__{game: nil}, _player_id), do: nil
+
+  def secret_for(%__MODULE__{game: game} = room, player_id) do
+    cond do
+      not member?(room, player_id) ->
+        nil
+
+      player_id == game.imposter_id ->
+        %{role: "imposter", category: game.entry.category, hint: game.hint}
+
+      true ->
+        %{role: "crew", category: game.entry.category, word: game.entry.word}
     end
   end
 
@@ -203,6 +242,8 @@ defmodule Backend.Rooms.Room do
       code: room.code,
       host_id: room.host_id,
       phase: room.phase,
+      round: room.game && room.game.round,
+      reveal_seconds: div(room.reveal_ms, 1000),
       settings: room.settings,
       min_players: @min_players,
       max_players: @max_players,

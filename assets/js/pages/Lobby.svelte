@@ -14,6 +14,9 @@
   let status = 'connecting'
   let errorMessage = ''
   let room = null
+  // What THIS player may know about the round (the word, or the imposter's hint). The server
+  // sends it only to this player; it is never part of the shared room.
+  let secret = null
   let channel = null
   let actionError = ''
   let copied = ''
@@ -24,7 +27,21 @@
   $: code = room ? room.code : roomCode
   $: connectedCount = players.filter(p => p.connected).length
   $: minPlayers = room?.min_players ?? 3
-  $: playing = room?.phase === 'playing'
+  $: playing = !!room && room.phase !== 'lobby'
+  $: revealing = room?.phase === 'reveal'
+
+  // countdown while everyone reads their card
+  let secondsLeft = 0
+  let countdown
+  let lastPhase
+  $: if (room && room.phase !== lastPhase) {
+    lastPhase = room.phase
+    clearInterval(countdown)
+    if (room.phase === 'reveal') {
+      secondsLeft = room.reveal_seconds
+      countdown = setInterval(() => secondsLeft > 0 && (secondsLeft -= 1), 1000)
+    }
+  }
   $: me = players.find(p => p.id === playerId)
   $: myReady = !!me?.ready
   // everyone who is here, isn't the host, and hasn't said ready (away players don't hold things up)
@@ -61,11 +78,15 @@
 
   onMount(() => {
     channel = joinRoom(roomCode, playerId, {
-      onJoined: r => {
+      onJoined: (r, s) => {
         room = r
+        secret = s
         status = 'live'
       },
-      onUpdate: r => (room = r),
+      onUpdate: (r, s) => {
+        room = r
+        secret = s
+      },
       onKicked: () => dispatch('gone', 'The host removed you from the room.'),
       onError: reason => {
         const message = reasons[reason] || 'Could not connect to the room.'
@@ -84,6 +105,7 @@
   // away. Closing the tab or refreshing skips this, so the server keeps the seat for a grace
   // period and you can come straight back.
   onDestroy(() => {
+    clearInterval(countdown)
     channel?.push('leave', {})
     channel?.leave()
   })
@@ -204,12 +226,39 @@
       </Card>
 
       {#if playing}
-        <Card class="flex flex-col justify-center gap-3 text-center" >
-          <h3 id="game-started" class="font-display text-2xl sm:text-3xl">Game on</h3>
-          <p class="text-riso-muted">
-            {room.settings.rounds} rounds, {room.settings.draw_time}s to draw. The drawing board is the next
-            thing we build.
-          </p>
+        <Card id="secret-card" class="flex flex-col justify-center gap-4 text-center">
+          {#if secret}
+            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
+              Category
+              <span id="secret-category" class="ml-1 text-riso-ink">{secret.category}</span>
+            </div>
+
+            {#if secret.role === 'imposter'}
+              <h3 id="secret-role" class="font-display text-3xl text-riso-pink mix-blend-multiply sm:text-4xl">
+                You're the imposter
+              </h3>
+              <p class="text-riso-muted">You don't know the word. Here is a clue, so blend in:</p>
+              <div id="secret-hint" class="mx-auto border-2 border-dashed border-riso-ink bg-white/60 px-5 py-3 font-display text-2xl">
+                {secret.hint}
+              </div>
+              <p class="text-sm text-riso-muted">Watch what the others draw, and don't get caught.</p>
+            {:else}
+              <h3 id="secret-role" class="font-display text-xl text-riso-muted">Your secret word</h3>
+              <div id="secret-word" class="font-display text-4xl text-riso-blue sm:text-5xl">{secret.word}</div>
+              <p class="text-sm text-riso-muted">
+                Draw something that shows you know it, without making it too obvious. One of you doesn't know it.
+              </p>
+            {/if}
+          {/if}
+
+          {#if revealing}
+            <p id="reveal-countdown" class="font-stamp text-sm uppercase tracking-widest text-riso-muted">
+              Drawing starts in {secondsLeft}s
+            </p>
+          {:else}
+            <p id="game-started" class="font-display text-2xl">Game on</p>
+            <p class="text-sm text-riso-muted">The drawing board is the next thing we build.</p>
+          {/if}
         </Card>
       {:else}
         <Card class="flex flex-col gap-6">

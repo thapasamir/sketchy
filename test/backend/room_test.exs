@@ -3,6 +3,21 @@ defmodule Backend.Rooms.RoomTest do
 
   alias Backend.Rooms.Room
 
+  defp deal(imposter \\ "p1") do
+    %{
+      imposter_id: imposter,
+      imposter_history: [imposter],
+      entry: %{
+        category: "Animals",
+        word: "Giraffe",
+        difficulty: "easy",
+        hints: ["tall", "savanna", "spots"]
+      },
+      hint: "savanna",
+      used_words: ["Giraffe"]
+    }
+  end
+
   defp room_with(names) do
     names
     |> Enum.with_index()
@@ -92,30 +107,31 @@ defmodule Backend.Rooms.RoomTest do
 
     test "needs three connected players" do
       assert {:error, :not_enough_players} =
-               Room.start_game(connected(room_with(["A", "B"])), "p0")
+               Room.start_game(connected(room_with(["A", "B"])), "p0", deal())
 
-      assert {:error, :not_enough_players} = Room.start_game(room_with(["A", "B", "C"]), "p0")
+      assert {:error, :not_enough_players} =
+               Room.start_game(room_with(["A", "B", "C"]), "p0", deal())
     end
 
     test "needs every connected non-host player to be ready" do
       room = connected(room_with(["A", "B", "C"]))
-      assert {:error, :not_all_ready} = Room.start_game(room, "p0")
+      assert {:error, :not_all_ready} = Room.start_game(room, "p0", deal())
 
       {:ok, room} = Room.set_ready(room, "p1", true)
-      assert {:error, :not_all_ready} = Room.start_game(room, "p0")
+      assert {:error, :not_all_ready} = Room.start_game(room, "p0", deal())
 
       {:ok, room} = Room.set_ready(room, "p2", true)
-      assert {:ok, %{phase: :playing}} = Room.start_game(room, "p0")
+      assert {:ok, %{phase: :reveal}} = Room.start_game(room, "p0", deal())
     end
 
     test "a player who is away doesn't hold up the start" do
       room = connected(room_with(["A", "B", "C", "D"])) |> Room.set_connected("p3", false)
-      assert {:ok, %{phase: :playing}} = Room.start_game(all_ready(room), "p0")
+      assert {:ok, %{phase: :reveal}} = Room.start_game(all_ready(room), "p0", deal())
     end
 
     test "only the host starts" do
       room = all_ready(connected(room_with(["A", "B", "C"])))
-      assert {:error, :not_host} = Room.start_game(room, "p1")
+      assert {:error, :not_host} = Room.start_game(room, "p1", deal())
     end
   end
 
@@ -157,6 +173,49 @@ defmodule Backend.Rooms.RoomTest do
       assert {:error, :host_cannot} = Room.can_kick(room, "p0", "p0")
       assert {:error, :not_a_member} = Room.can_kick(room, "p0", "ghost")
       assert {:error, :game_in_progress} = Room.can_kick(%{room | phase: :playing}, "p0", "p1")
+    end
+  end
+
+  describe "the secret of a round" do
+    defp started do
+      room = room_with(["Host", "Crew", "Spy"])
+      room = Enum.reduce(Map.keys(room.players), room, &Room.set_connected(&2, &1, true))
+      {:ok, room} = Room.set_ready(room, "p1", true)
+      {:ok, room} = Room.set_ready(room, "p2", true)
+      {:ok, room} = Room.start_game(room, "p0", deal("p2"))
+      room
+    end
+
+    test "there is no secret in the lobby" do
+      assert Room.secret_for(room_with(["Host"]), "p0") == nil
+    end
+
+    test "everyone except the imposter is told the word" do
+      room = started()
+      assert %{role: "crew", word: "Giraffe", category: "Animals"} = Room.secret_for(room, "p0")
+      assert %{role: "crew", word: "Giraffe"} = Room.secret_for(room, "p1")
+    end
+
+    test "the imposter gets the category and a hint, and never the word" do
+      secret = Room.secret_for(started(), "p2")
+      assert secret == %{role: "imposter", category: "Animals", hint: "savanna"}
+      refute Map.has_key?(secret, :word)
+    end
+
+    test "strangers learn nothing" do
+      assert Room.secret_for(started(), "stranger") == nil
+    end
+
+    test "the public view of the room never contains the secret" do
+      public = started() |> Room.to_public() |> inspect()
+      refute public =~ "Giraffe"
+      refute public =~ "savanna"
+      refute public =~ "imposter"
+    end
+
+    test "the reveal ends in the drawing phase, and only once" do
+      assert {:ok, %{phase: :drawing}} = Room.end_reveal(started())
+      assert {:error, :not_revealing} = Room.end_reveal(room_with(["Host"]))
     end
   end
 end
