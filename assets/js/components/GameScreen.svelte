@@ -19,6 +19,9 @@
   export let vote = null
   export let castVote = () => {}
   export let submitGuess = () => {}
+  // the host can skip the wait after a round's result
+  export let isHost = false
+  export let nextRound = () => {}
 
   const BRUSHES = [
     { size: 1, label: 'Thin', px: 6 },
@@ -35,7 +38,15 @@
   $: result = room.result
   $: iAmImposter = secret?.role === 'imposter'
   // whichever phase is timed says how long is left (turn, vote or guess)
-  $: stage = drawing ? turn : phase === 'voting' ? room.vote : phase === 'guess' ? room.guess : null
+  $: stage = drawing
+    ? turn
+    : phase === 'voting'
+      ? room.vote
+      : phase === 'guess'
+        ? room.guess
+        : phase === 'result' && result?.ms_left != null
+          ? result
+          : null
   $: byId = Object.fromEntries(room.players.map(p => [p.id, p]))
   $: drawer = turn ? byId[turn.player_id] : null
   $: me = byId[playerId]
@@ -106,7 +117,7 @@
             aria-hidden="true"></span>
           <div class="min-w-0 flex-1">
             <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
-              Round {turn.lap} of {turn.laps}
+              Round {room.round} of {room.rounds}
             </div>
             <div id="turn-text" class="truncate font-display text-xl sm:text-2xl">
               {myTurn ? 'Your turn. Draw!' : `${drawer?.name ?? 'Someone'} is drawing`}
@@ -126,7 +137,9 @@
           </div>
         {:else}
           <div class="min-w-0 flex-1">
-            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">Round over</div>
+            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
+              Round {room.round} of {room.rounds} over
+            </div>
             <div id="turn-text" class="break-words font-display text-xl sm:text-2xl">
               {outcomeTitle(result, iAmImposter)}
             </div>
@@ -220,7 +233,7 @@
 
   <aside class="flex flex-col gap-4 lg:col-start-2 lg:row-start-2">
     {#if phase === 'result'}
-      <ResultPanel {room} {playerId} />
+      <ResultPanel {room} {playerId} {isHost} {nextRound} />
     {:else}
     <Card class="!p-4">
       <h3 class="mb-3 font-display text-lg">{drawing ? 'Drawing order' : 'Players'}</h3>

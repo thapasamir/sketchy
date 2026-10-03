@@ -4,6 +4,7 @@
   import Button from '../components/Button.svelte'
   import Card from '../components/Card.svelte'
   import GameScreen from '../components/GameScreen.svelte'
+  import FinalScreen from '../components/FinalScreen.svelte'
   import { createStrokeStore } from '../lib/strokes.js'
   import { joinRoom } from '../lib/socket.js'
 
@@ -37,6 +38,7 @@
   $: playing = !!room && room.phase !== 'lobby'
   $: revealing = room?.phase === 'reveal'
   $: inGame = ['drawing', 'voting', 'guess', 'result'].includes(room?.phase)
+  $: finished = room?.phase === 'final'
 
   // countdown while everyone reads their card
   let secondsLeft = 0
@@ -87,6 +89,8 @@
     not_imposter: 'Only the imposter can guess.',
     invalid_guess: 'Type a word or two.',
     not_guessing: 'The guessing is over.',
+    not_result: 'That can only be done after a round.',
+    not_finished: 'The game is not over yet.',
   }
 
   onMount(() => {
@@ -183,6 +187,13 @@
   $: turnKey = room?.turn ? `${room.turn.player_id}:${room.turn.lap}` : ''
   $: if (turnKey !== undefined) drawError = ''
 
+  // A new round (and a new game) starts with an empty canvas. The server has already cleared its
+  // copy; this clears the one in this browser.
+  $: if (room && (room.phase === 'reveal' || room.phase === 'lobby')) strokes.load([])
+
+  const nextRound = () => send('next_round')
+  const playAgain = () => send('play_again')
+
   const toggleReady = () => send('set_ready', { ready: !myReady })
 
   function kick(player) {
@@ -235,7 +246,9 @@
   {:else if status === 'connecting'}
     <p class="text-center font-stamp text-riso-muted">Opening room…</p>
   {:else}
-    {#if inGame}
+    {#if finished}
+      <FinalScreen {room} {playerId} {isHost} {playAgain} error={actionError} />
+    {:else if inGame}
       <GameScreen
         {room}
         {secret}
@@ -247,6 +260,8 @@
         {vote}
         {castVote}
         {submitGuess}
+        {nextRound}
+        {isHost}
         error={drawError || actionError} />
     {:else}
     <div class="grid gap-6 md:grid-cols-2">
@@ -309,6 +324,9 @@
         <Card id="secret-card" class="flex flex-col justify-center gap-4 text-center">
           {#if secret}
             <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
+              Round {room.round} of {room.rounds}
+            </div>
+            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
               Category
               <span id="secret-category" class="ml-1 text-riso-ink">{secret.category}</span>
             </div>
@@ -346,7 +364,7 @@
           </div>
 
           <div>
-            <label for="rounds" class={labelClass}>Rounds (everyone draws once per round)</label>
+            <label for="rounds" class={labelClass}>Number of rounds</label>
             <div id="rounds-value" class="mb-2 text-center font-display text-3xl text-riso-blue">{rounds}</div>
             <input
               id="rounds"

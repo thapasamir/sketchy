@@ -1,14 +1,18 @@
 <script>
+  import Button from './Button.svelte'
   import Card from './Card.svelte'
 
   export let room
   export let playerId
+  export let isHost = false
+  export let nextRound = () => {}
 
   $: result = room.result
   $: name = id => result.names[id] ?? 'Someone'
   $: colorOf = id => room.players.find(p => p.id === id)?.color ?? '#999'
   $: voters = Object.keys(result.votes)
   $: ranking = [...room.players].sort((a, b) => b.score - a.score)
+  $: lastRound = room.round >= room.rounds
   $: top = ranking[0]?.score
   // highlight the leader(s), unless everyone is level (then it says nothing)
   $: leaders = ranking.filter(p => p.score === top).length
@@ -73,5 +77,20 @@
         </li>
       {/each}
     </ol>
+  </Card>
+
+  <Card id="next-card" class="!p-4 text-center">
+    <p id="next-text" class="font-stamp text-sm text-riso-muted">
+      {#if lastRound}
+        That was the last round. The final scores are next.
+      {:else}
+        Round {room.round + 1} of {room.rounds} is next.
+      {/if}
+    </p>
+    {#if isHost}
+      <Button id="next-round-button" variant="yellow" class="mt-3 w-full py-2.5 text-base" on:click={nextRound}>
+        {lastRound ? 'Final scores now' : 'Next round now'}
+      </Button>
+    {/if}
   </Card>
 </div>
