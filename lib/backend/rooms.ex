@@ -84,6 +84,12 @@ defmodule Backend.Rooms do
   @doc "The caught imposter's guess at the word (`text` comes straight from the browser)."
   def guess(code, player_id, text), do: RoomServer.guess(normalize_code(code), player_id, text)
 
+  @doc "Host skips the wait after a result and starts the next round now."
+  def next_round(code, player_id), do: RoomServer.next_round(normalize_code(code), player_id)
+
+  @doc "Host takes everyone back to the lobby for another game."
+  def play_again(code, player_id), do: RoomServer.play_again(normalize_code(code), player_id)
+
   @doc "The drawer ends their turn early."
   def finish_turn(code, player_id), do: RoomServer.finish_turn(normalize_code(code), player_id)
 
@@ -116,7 +122,8 @@ defmodule Backend.Rooms do
        turn_ms: Application.get_env(:backend, :turn_ms),
        drawer_away_ms: Application.get_env(:backend, :drawer_away_ms, 8_000),
        vote_ms: Application.get_env(:backend, :vote_ms, 30_000),
-       guess_ms: Application.get_env(:backend, :guess_ms, 20_000)}
+       guess_ms: Application.get_env(:backend, :guess_ms, 20_000),
+       result_ms: Application.get_env(:backend, :result_ms, 12_000)}
 
     case DynamicSupervisor.start_child(Backend.RoomSupervisor, spec) do
       {:ok, _pid} -> {:ok, %{code: code, player_id: host.id}}

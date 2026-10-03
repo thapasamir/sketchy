@@ -240,7 +240,8 @@ defmodule BackendWeb.RoomChannelTest do
       assert_reply push(ctx.sockets[ctx.drawer], "finish_turn", %{}), :ok
       assert_push "room_updated", %{room: room}
 
-      assert %{player_id: _, lap: 1, laps: 3, ms_left: ms} = room.turn
+      assert %{player_id: _, order: [_, _, _], ms_left: ms} = room.turn
+      assert %{round: 1, rounds: 3} = room
       assert ms > 0
       assert Enum.all?(room.players, &is_binary(&1.color))
       refute Map.has_key?(room, :strokes)
@@ -307,7 +308,7 @@ defmodule BackendWeb.RoomChannelTest do
       # play out the drawing: each drawer hands the pen on until it runs out
       {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
 
-      for _ <- 1..(3 * room.settings.rounds) do
+      for _ <- 1..3 do
         {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
         assert_reply push(sockets[room.game.turn.player_id], "finish_turn", %{}), :ok
       end
@@ -384,6 +385,44 @@ defmodule BackendWeb.RoomChannelTest do
 
       assert word == ctx.word
       assert id == ctx.imposter
+    end
+
+    defp end_round_innocent(ctx) do
+      # the crew accuses one of their own: the round is over at once
+      for voter <- Map.keys(ctx.sockets) do
+        target = if voter == ctx.crew_a, do: ctx.crew_b, else: ctx.crew_a
+        assert_reply push(ctx.sockets[voter], "vote", %{"target_id" => target}), :ok
+      end
+
+      assert_push "room_updated", %{room: %{phase: :result}}
+    end
+
+    test "the host can start the next round straight away; nobody else can", ctx do
+      ref = push(ctx.sockets[ctx.crew_a], "next_round", %{})
+      assert_reply ref, :error, %{reason: "not_result"}
+
+      end_round_innocent(ctx)
+      {:ok, room} = Backend.Rooms.RoomServer.get_state(ctx.code)
+      host_socket = ctx.sockets[room.host_id]
+      guest = Enum.find(Map.keys(ctx.sockets), &(&1 != room.host_id))
+
+      ref = push(ctx.sockets[guest], "next_round", %{})
+      assert_reply ref, :error, %{reason: "not_host"}
+
+      assert_reply push(host_socket, "next_round", %{}), :ok
+      assert_push "room_updated", %{room: %{phase: :reveal, round: 2, rounds: 3}}
+    end
+
+    test "the result tells everyone how long until the next round", ctx do
+      end_round_innocent(ctx)
+      assert_push "room_updated", %{room: %{phase: :result, result: %{ms_left: ms}}}
+      assert is_integer(ms) and ms > 0
+    end
+
+    test "playing again is refused until the game is over", ctx do
+      {:ok, room} = Backend.Rooms.RoomServer.get_state(ctx.code)
+      ref = push(ctx.sockets[room.host_id], "play_again", %{})
+      assert_reply ref, :error, %{reason: "not_finished"}
     end
 
     test "while voting, the word is nowhere in what the room pushes", ctx do

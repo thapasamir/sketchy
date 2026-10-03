@@ -27,7 +27,7 @@ defmodule Backend.Rooms.Room do
             host_id: nil,
             phase: :lobby,
             players: %{},
-            settings: %{rounds: 3, draw_time: 60},
+            settings: %{rounds: 3, draw_time: 30},
             # The secret part of a round (word, imposter). NEVER put this in `to_public/1`.
             game: nil,
             # points kept across rounds: %{player_id => integer}
@@ -98,7 +98,7 @@ defmodule Backend.Rooms.Room do
     room = %{room | players: players, host_id: host_id}
 
     if room.game do
-      queue = Enum.reject(room.game.queue, fn {_lap, id} -> id == player_id end)
+      queue = Enum.reject(room.game.queue, &(&1 == player_id))
       Voting.forget(%{room | game: %{room.game | queue: queue}}, player_id)
     else
       room
@@ -172,6 +172,7 @@ defmodule Backend.Rooms.Room do
         queue: [],
         turn: nil,
         turn_n: 0,
+        next_at: nil,
         names: Map.new(room.players, fn {id, player} -> {id, player.name} end),
         # after the drawing (see `Backend.Rooms.Voting`)
         votes: %{},
@@ -190,9 +191,8 @@ defmodule Backend.Rooms.Room do
   time in ms and `turn_ms` how long a turn lasts; they are passed in so this stays pure.
   """
   def end_reveal(%__MODULE__{phase: :reveal} = room, now, turn_ms) do
-    # every lap, everyone draws once, in the same order
-    queue = for lap <- 1..room.settings.rounds, id <- room.game.turn_order, do: {lap, id}
-    room = %{room | phase: :drawing, game: %{room.game | queue: queue}}
+    # in a round everyone draws once, in the order dealt for it
+    room = %{room | phase: :drawing, game: %{room.game | queue: room.game.turn_order}}
     {:ok, next_turn(room, now, turn_ms)}
   end
 
@@ -209,20 +209,84 @@ defmodule Backend.Rooms.Room do
       nil ->
         Voting.open(room, now, vote_ms)
 
-      {lap, player_id} ->
-        turn = %{player_id: player_id, lap: lap, n: game.turn_n + 1, ends_at: now + turn_ms}
+      player_id ->
+        turn = %{player_id: player_id, n: game.turn_n + 1, ends_at: now + turn_ms}
         %{room | game: %{game | queue: rest, turn: turn, turn_n: turn.n, open_stroke: nil}}
     end
   end
 
   defp pop_drawer([], _room), do: {nil, []}
 
-  defp pop_drawer([{_lap, id} = next | rest], room) do
+  defp pop_drawer([id | rest], room) do
     case room.players do
-      %{^id => %{connected?: true}} -> {next, rest}
+      %{^id => %{connected?: true}} -> {id, rest}
       _ -> pop_drawer(rest, room)
     end
   end
+
+  @doc """
+  After a round's result: is there another round? There is if the game isn't on its last round
+  and enough players are still here to play it.
+  """
+  def continue?(%__MODULE__{phase: :result, game: game} = room) do
+    connected = Enum.count(room.players, fn {_id, p} -> p.connected? end)
+    game.round < room.settings.rounds and connected >= @min_players
+  end
+
+  def continue?(%__MODULE__{}), do: false
+
+  @doc """
+  Start the next round: a fresh deal (word, imposter, drawing order), an empty canvas, and the
+  reveal again. Scores, colours and the history that keeps the imposter and words from repeating
+  carry over. `deal` comes from `Backend.Rooms.Dealer`, as for the first round.
+  """
+  def next_round(%__MODULE__{phase: :result, game: game} = room, deal) do
+    game = %{
+      game
+      | round: game.round + 1,
+        imposter_id: deal.imposter_id,
+        imposter_history: deal.imposter_history,
+        entry: deal.entry,
+        hint: deal.hint,
+        used_words: deal.used_words,
+        turn_order: deal.turn_order,
+        names: Map.new(room.players, fn {id, player} -> {id, player.name} end),
+        strokes: [],
+        open_stroke: nil,
+        queue: [],
+        turn: nil,
+        turn_n: 0,
+        votes: %{},
+        vote_ends_at: nil,
+        guess_ends_at: nil,
+        accused: nil,
+        result: nil,
+        next_at: nil
+    }
+
+    {:ok, %{room | phase: :reveal, game: game}}
+  end
+
+  def next_round(%__MODULE__{}, _deal), do: {:error, :not_result}
+
+  @doc "The last round is over: show the final standings."
+  def finish_game(%__MODULE__{phase: :result} = room), do: {:ok, %{room | phase: :final}}
+  def finish_game(%__MODULE__{}), do: {:error, :not_result}
+
+  @doc "Host-only. Back to the lobby for another game: scores start again, ready flags stay."
+  def play_again(%__MODULE__{phase: :final} = room, player_id) do
+    with :ok <- check_host(room, player_id) do
+      {:ok, %{room | phase: :lobby, game: nil, scores: %{}}}
+    end
+  end
+
+  def play_again(%__MODULE__{}, _player_id), do: {:error, :not_finished}
+
+  @doc "Host-only. Skip the wait after a result and go on to the next round (or the final)."
+  def check_can_skip(%__MODULE__{phase: :result} = room, player_id),
+    do: check_host(room, player_id)
+
+  def check_can_skip(%__MODULE__{}, _player_id), do: {:error, :not_result}
 
   @doc "Is it `player_id`'s turn to draw right now?"
   def drawer?(%__MODULE__{phase: :drawing, game: %{turn: %{player_id: id}}}, id), do: true
@@ -488,6 +552,8 @@ defmodule Backend.Rooms.Room do
       host_id: room.host_id,
       phase: room.phase,
       round: room.game && room.game.round,
+      rounds: room.settings.rounds,
+      final: final_public(room),
       reveal_seconds: div(room.reveal_ms, 1000),
       turn: turn_public(room, now),
       vote: stage(room, :voting, now),
@@ -503,15 +569,27 @@ defmodule Backend.Rooms.Room do
   defp turn_public(%__MODULE__{game: %{turn: %{} = turn}} = room, now) do
     %{
       player_id: turn.player_id,
-      lap: turn.lap,
-      laps: room.settings.rounds,
-      # the order everyone draws in, every lap (not a secret: it is on show at the table)
+      # the order everyone draws in this round (not a secret: it is on show at the table)
       order: Enum.filter(room.game.turn_order, &Map.has_key?(room.players, &1)),
       ms_left: turn_ms_left(room, now)
     }
   end
 
   defp turn_public(_room, _now), do: nil
+
+  # the winner(s) of the game: whoever has the top score (a tie shares it; nobody if no one scored)
+  defp final_public(%__MODULE__{phase: :final} = room) do
+    top = room.scores |> Map.values() |> Enum.max(fn -> 0 end)
+
+    winners =
+      if top > 0,
+        do: for({id, score} <- room.scores, score == top, Map.has_key?(room.players, id), do: id),
+        else: []
+
+    %{winner_ids: Enum.sort(winners), rounds_played: room.game.round}
+  end
+
+  defp final_public(_room), do: nil
 
   # the voting / guessing / result details exist only while the room is in that phase
   defp stage(%__MODULE__{phase: phase} = room, phase, now), do: Voting.public(room, now)

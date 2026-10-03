@@ -53,6 +53,12 @@ defmodule Backend.Rooms.RoomServer do
   @doc "The caught imposter's one guess at the word."
   def guess(code, player_id, text), do: call(code, {:guess, player_id, text})
 
+  @doc "Host skips the wait after a result."
+  def next_round(code, player_id), do: call(code, {:next_round, player_id})
+
+  @doc "Host takes everyone back to the lobby after the final standings."
+  def play_again(code, player_id), do: call(code, {:play_again, player_id})
+
   @doc "The current drawer hands the pen on early."
   def finish_turn(code, player_id), do: call(code, {:finish_turn, player_id})
   def set_ready(code, player_id, ready?), do: call(code, {:set_ready, player_id, ready?})
@@ -90,6 +96,7 @@ defmodule Backend.Rooms.RoomServer do
   #   expiry   - %{player_id => {token, timer}}, a pending "remove if still away" timer
   #   reveal_ms - how long the reveal lasts
   #   vote_ms / guess_ms - how long the vote, and the caught imposter's guess, last
+  #   result_ms - how long a round's result stays up before the next round (or the final)
   #   turn_ms - fixed turn length (tests only); normally the room's draw_time setting is used
   #   drawer_away_ms - how long a turn waits for a drawer who dropped before moving on
   #   phase_timer - {token, timer} for whatever ends the current phase/turn (only one at a time)
@@ -110,6 +117,7 @@ defmodule Backend.Rooms.RoomServer do
       drawer_away_ms: Keyword.get(opts, :drawer_away_ms, 8_000),
       vote_ms: Keyword.get(opts, :vote_ms, 30_000),
       guess_ms: Keyword.get(opts, :guess_ms, 20_000),
+      result_ms: Keyword.get(opts, :result_ms, 12_000),
       phase_timer: nil,
       monitors: %{},
       expiry: %{}
@@ -252,6 +260,31 @@ defmodule Backend.Rooms.RoomServer do
     end
   end
 
+  def handle_call({:next_round, player_id}, _from, state) do
+    case Room.check_can_skip(state.room, player_id) do
+      :ok -> {:reply, :ok, advance_round(state)}
+      {:error, _reason} = error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call({:play_again, player_id}, _from, state) do
+    case Room.play_again(state.room, player_id) do
+      {:ok, room} ->
+        # anyone who dropped during the game is back on the lobby's clock: they have the usual
+        # grace period to return, then their seat is freed
+        state =
+          for {id, %{connected?: false}} <- room.players, reduce: put_room(state, room) do
+            state -> schedule_expiry(state, id)
+          end
+
+        broadcast(state.room)
+        {:reply, :ok, clear_phase_timer(state)}
+
+      {:error, _reason} = error ->
+        {:reply, error, state}
+    end
+  end
+
   def handle_call({:finish_turn, player_id}, _from, state) do
     if Room.drawer?(state.room, player_id) do
       {:reply, :ok, advance_turn(state)}
@@ -319,9 +352,14 @@ defmodule Backend.Rooms.RoomServer do
     {:noreply, state}
   end
 
+  # The result has been on screen long enough.
+  def handle_info({:next_round, token}, %{phase_timer: {token, _timer}} = state) do
+    {:noreply, advance_round(state)}
+  end
+
   # A timer that has since been replaced or cancelled: ignore it.
   def handle_info({tag, _stale_token}, state)
-      when tag in [:end_reveal, :end_turn, :end_vote, :end_guess],
+      when tag in [:end_reveal, :end_turn, :end_vote, :end_guess, :next_round],
       do: {:noreply, state}
 
   # The grace period ended. The token check ignores a timer that a reconnect has since replaced.
@@ -410,7 +448,29 @@ defmodule Backend.Rooms.RoomServer do
   defp arm_phase_timer(%{room: %{phase: :guess, game: game}} = state),
     do: set_phase_timer(state, :end_guess, max(game.guess_ends_at - now_ms(), 0))
 
+  # the result stays up for a while, then the next round starts (see `advance_round/1`)
+  defp arm_phase_timer(%{room: %{phase: :result}} = state) do
+    state = put_in(state.room.game.next_at, now_ms() + state.result_ms)
+    set_phase_timer(state, :next_round, state.result_ms)
+  end
+
   defp arm_phase_timer(state), do: clear_phase_timer(state)
+
+  # After a result: deal and start the next round, or, if that was the last (or too few players
+  # are left), show the final standings.
+  defp advance_round(state) do
+    state =
+      if Room.continue?(state.room) do
+        {:ok, room} = Room.next_round(state.room, Dealer.deal(state.room))
+        state |> put_room(room) |> set_phase_timer(:end_reveal, state.reveal_ms)
+      else
+        {:ok, room} = Room.finish_game(state.room)
+        state |> put_room(room) |> clear_phase_timer()
+      end
+
+    broadcast(state.room)
+    state
+  end
 
   defp close_voting_if_done(%{room: %{phase: :voting}} = state) do
     if Voting.all_voted?(state.room), do: close_voting(state), else: state

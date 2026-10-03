@@ -17,7 +17,7 @@ defmodule Backend.Rooms.DrawingTest do
     }
   end
 
-  # 3 connected players in the reveal phase, 2 laps
+  # 3 connected players in the reveal phase; the game is `rounds` rounds long
   defp revealing(rounds \\ 2) do
     room =
       Enum.reduce(0..2, Room.new("ABCD", "p0"), &Room.add_player(&2, "p#{&1}", "Player#{&1}"))
@@ -56,20 +56,23 @@ defmodule Backend.Rooms.DrawingTest do
     test "the first turn starts when the reveal ends, with the first player in the order" do
       room = drawing()
       assert room.phase == :drawing
-      assert %{player_id: "p2", lap: 1, ends_at: ends_at} = room.game.turn
+      assert %{player_id: "p2", ends_at: ends_at} = room.game.turn
       assert ends_at == @now + @turn_ms
       assert Room.drawer?(room, "p2")
       refute Room.drawer?(room, "p0")
     end
 
-    test "everyone draws once per lap, in the same order, for every lap" do
-      assert [first | rest] = drawers(drawing(3)) |> then(&["p2" | &1])
-      assert first == "p2"
-      assert [first | rest] == ~w(p2 p0 p1 p2 p0 p1 p2 p0 p1)
+    test "in a round everyone draws exactly once, in the order dealt" do
+      room = drawing()
+      assert [room.game.turn.player_id | drawers(room)] == ~w(p2 p0 p1)
+    end
+
+    test "how many rounds the game has makes no difference to a round's drawing" do
+      assert drawers(drawing(2)) == drawers(drawing(4))
     end
 
     test "after the last turn the room moves on to voting, with nobody drawing" do
-      room = Enum.reduce(1..5, drawing(2), fn _, room -> Room.next_turn(room, @now, @turn_ms) end)
+      room = Enum.reduce(1..2, drawing(2), fn _, room -> Room.next_turn(room, @now, @turn_ms) end)
       assert room.phase == :drawing
       room = Room.next_turn(room, @now, @turn_ms)
       assert room.phase == :voting
@@ -79,12 +82,12 @@ defmodule Backend.Rooms.DrawingTest do
 
     test "a player who is away when their turn comes is skipped" do
       room = drawing(2) |> then(&Room.set_connected(&1, "p0", false))
-      assert drawers(room) == ~w(p1 p2 p1)
+      assert drawers(room) == ~w(p1)
     end
 
     test "a player who left is never given a turn" do
       room = Room.remove_player(drawing(2), "p1")
-      assert drawers(room) == ~w(p0 p2 p0)
+      assert drawers(room) == ~w(p0)
     end
 
     test "a turn knows how long is left, never below zero" do
@@ -96,7 +99,8 @@ defmodule Backend.Rooms.DrawingTest do
 
     test "the public view shows whose turn it is and the time left, and no secrets" do
       public = Room.to_public(drawing(), @now + 5_000)
-      assert %{player_id: "p2", lap: 1, laps: 2, ms_left: 25_000} = public.turn
+      assert %{player_id: "p2", order: ~w(p2 p0 p1), ms_left: 25_000} = public.turn
+      assert %{round: 1, rounds: 2} = public
       assert Room.to_public(revealing()).turn == nil
       refute inspect(public) =~ "Giraffe"
     end

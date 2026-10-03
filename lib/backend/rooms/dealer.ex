@@ -25,7 +25,7 @@ defmodule Backend.Rooms.Dealer do
       entry: entry,
       hint: Enum.random(entry.hints),
       used_words: [entry.word | used],
-      # who draws in which order, every lap; fixed for the whole game
+      # who draws in which order this round
       turn_order: room.players |> Map.keys() |> Enum.shuffle()
     }
   end

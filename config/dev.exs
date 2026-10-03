@@ -94,4 +94,5 @@ end
 #   VOTE_MS=8000 GUESS_MS=8000 mix phx.server
 config :backend,
   vote_ms: String.to_integer(System.get_env("VOTE_MS", "30000")),
-  guess_ms: String.to_integer(System.get_env("GUESS_MS", "20000"))
+  guess_ms: String.to_integer(System.get_env("GUESS_MS", "20000")),
+  result_ms: String.to_integer(System.get_env("RESULT_MS", "12000"))

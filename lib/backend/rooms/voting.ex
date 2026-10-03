@@ -158,6 +158,10 @@ defmodule Backend.Rooms.Voting do
     %{ms_left: max(game.guess_ends_at - now, 0), guesser_id: game.imposter_id}
   end
 
-  def public(%{phase: :result, game: game}, _now), do: game.result
+  # `ms_left` is how long until the next round starts by itself (nil if no wait is running)
+  def public(%{phase: :result, game: game}, now) do
+    Map.put(game.result, :ms_left, game.next_at && max(game.next_at - now, 0))
+  end
+
   def public(_room, _now), do: nil
 end

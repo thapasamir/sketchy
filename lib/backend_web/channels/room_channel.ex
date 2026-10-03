@@ -83,6 +83,18 @@ defmodule BackendWeb.RoomChannel do
     |> to_reply(socket)
   end
 
+  def handle_in("next_round", _params, socket) do
+    socket.assigns.room_code
+    |> Rooms.next_round(socket.assigns.player_id)
+    |> to_reply(socket)
+  end
+
+  def handle_in("play_again", _params, socket) do
+    socket.assigns.room_code
+    |> Rooms.play_again(socket.assigns.player_id)
+    |> to_reply(socket)
+  end
+
   def handle_in("sync", _params, socket) do
     case Rooms.fetch_member_room(socket.assigns.room_code, socket.assigns.player_id) do
       {:ok, room} -> {:reply, {:ok, %{strokes: Room.strokes_public(room)}}, socket}
