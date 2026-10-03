@@ -20,6 +20,7 @@ defmodule BackendWeb.RoomChannel do
          %{
            room: Room.to_public(room),
            secret: Room.secret_for(room, player_id),
+           vote: Room.my_vote(room, player_id),
            # a player who joins or refreshes mid-game gets the picture as it is now
            strokes: Room.strokes_public(room),
            you: player_id
@@ -70,6 +71,18 @@ defmodule BackendWeb.RoomChannel do
 
   # "Show me the picture as the server has it." A drawer draws optimistically, so after a refusal
   # (or when their turn ends) they ask for this to be sure their screen matches everyone's.
+  def handle_in("vote", %{"target_id" => target_id}, socket) when is_binary(target_id) do
+    socket.assigns.room_code
+    |> Rooms.vote(socket.assigns.player_id, target_id)
+    |> to_reply(socket)
+  end
+
+  def handle_in("guess", %{"text" => text}, socket) when is_binary(text) do
+    socket.assigns.room_code
+    |> Rooms.guess(socket.assigns.player_id, text)
+    |> to_reply(socket)
+  end
+
   def handle_in("sync", _params, socket) do
     case Rooms.fetch_member_room(socket.assigns.room_code, socket.assigns.player_id) do
       {:ok, room} -> {:reply, {:ok, %{strokes: Room.strokes_public(room)}}, socket}
@@ -124,7 +137,8 @@ defmodule BackendWeb.RoomChannel do
     # `room` is the same for everyone; `secret` is computed per socket from THIS player's id
     push(socket, "room_updated", %{
       room: Room.to_public(room),
-      secret: Room.secret_for(room, socket.assigns.player_id)
+      secret: Room.secret_for(room, socket.assigns.player_id),
+      vote: Room.my_vote(room, socket.assigns.player_id)
     })
 
     {:noreply, socket}

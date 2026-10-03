@@ -6,6 +6,8 @@ defmodule Backend.Rooms.Room do
   `Backend.Rooms.RoomServer` is the process that holds the current value.
   """
 
+  alias Backend.Rooms.Voting
+
   @max_players 8
   @min_players 3
   @round_range 2..4
@@ -28,6 +30,8 @@ defmodule Backend.Rooms.Room do
             settings: %{rounds: 3, draw_time: 60},
             # The secret part of a round (word, imposter). NEVER put this in `to_public/1`.
             game: nil,
+            # points kept across rounds: %{player_id => integer}
+            scores: %{},
             reveal_ms: 8_000,
             created_at: nil
 
@@ -95,7 +99,7 @@ defmodule Backend.Rooms.Room do
 
     if room.game do
       queue = Enum.reject(room.game.queue, fn {_lap, id} -> id == player_id end)
-      %{room | game: %{room.game | queue: queue}}
+      Voting.forget(%{room | game: %{room.game | queue: queue}}, player_id)
     else
       room
     end
@@ -167,7 +171,14 @@ defmodule Backend.Rooms.Room do
         open_stroke: nil,
         queue: [],
         turn: nil,
-        turn_n: 0
+        turn_n: 0,
+        names: Map.new(room.players, fn {id, player} -> {id, player.name} end),
+        # after the drawing (see `Backend.Rooms.Voting`)
+        votes: %{},
+        vote_ends_at: nil,
+        guess_ends_at: nil,
+        accused: nil,
+        result: nil
       }
 
       {:ok, %{room | phase: :reveal, game: game}}
@@ -191,12 +202,12 @@ defmodule Backend.Rooms.Room do
   Hand the pen to the next player in the queue. Anyone who has left, or is away right now, is
   skipped. When nobody is left the drawing is finished and the room moves on to voting.
   """
-  def next_turn(%__MODULE__{game: game} = room, now, turn_ms) do
+  def next_turn(%__MODULE__{game: game} = room, now, turn_ms, vote_ms \\ 30_000) do
     {next, rest} = pop_drawer(game.queue, room)
 
     case next do
       nil ->
-        %{room | phase: :voting, game: %{game | queue: [], turn: nil, open_stroke: nil}}
+        Voting.open(room, now, vote_ms)
 
       {lap, player_id} ->
         turn = %{player_id: player_id, lap: lap, n: game.turn_n + 1, ends_at: now + turn_ms}
@@ -467,7 +478,8 @@ defmodule Backend.Rooms.Room do
           name: &1.name,
           connected: &1.connected?,
           ready: &1.ready?,
-          color: colors[&1.id]
+          color: colors[&1.id],
+          score: Map.get(room.scores, &1.id, 0)
         }
       )
 
@@ -478,6 +490,9 @@ defmodule Backend.Rooms.Room do
       round: room.game && room.game.round,
       reveal_seconds: div(room.reveal_ms, 1000),
       turn: turn_public(room, now),
+      vote: stage(room, :voting, now),
+      guess: stage(room, :guess, now),
+      result: stage(room, :result, now),
       settings: room.settings,
       min_players: @min_players,
       max_players: @max_players,
@@ -497,4 +512,11 @@ defmodule Backend.Rooms.Room do
   end
 
   defp turn_public(_room, _now), do: nil
+
+  # the voting / guessing / result details exist only while the room is in that phase
+  defp stage(%__MODULE__{phase: phase} = room, phase, now), do: Voting.public(room, now)
+  defp stage(_room, _phase, _now), do: nil
+
+  @doc "Who `player_id` has voted for (only they may know; sent to them alone)."
+  defdelegate my_vote(room, player_id), to: Voting
 end

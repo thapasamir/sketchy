@@ -156,7 +156,7 @@ defmodule Backend.TurnsTest do
     assert drawer(code) == second
   end
 
-  test "after the last turn the room moves to voting and stops timing" do
+  test "after the last turn the room moves to voting, with the vote timed instead" do
     %{code: code, pids: _} = new_game()
     room = state(code)
     turns = 3 * room.settings.rounds
@@ -166,7 +166,7 @@ defmodule Backend.TurnsTest do
     assert state(code).phase == :voting
     assert state(code).game.turn == nil
     [{pid, _}] = Registry.lookup(Backend.RoomRegistry, code)
-    assert :sys.get_state(pid).phase_timer == nil
+    assert {_token, _timer} = :sys.get_state(pid).phase_timer
 
     assert {:error, :not_your_turn} =
              Rooms.draw(code, hd(room.game.turn_order), stroke("z"), self())

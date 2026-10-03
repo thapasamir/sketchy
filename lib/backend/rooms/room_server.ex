@@ -19,7 +19,7 @@ defmodule Backend.Rooms.RoomServer do
 
   require Logger
 
-  alias Backend.Rooms.{Dealer, Room}
+  alias Backend.Rooms.{Dealer, Room, Voting}
 
   # --- Client API: runs in the CALLER's process ---
 
@@ -46,6 +46,12 @@ defmodule Backend.Rooms.RoomServer do
   def draw(code, player_id, params, origin), do: call(code, {:draw, player_id, params, origin})
 
   def undo(code, player_id, origin), do: call(code, {:undo, player_id, origin})
+
+  @doc "Vote for who you think the imposter is (while voting is open)."
+  def vote(code, player_id, target_id), do: call(code, {:vote, player_id, target_id})
+
+  @doc "The caught imposter's one guess at the word."
+  def guess(code, player_id, text), do: call(code, {:guess, player_id, text})
 
   @doc "The current drawer hands the pen on early."
   def finish_turn(code, player_id), do: call(code, {:finish_turn, player_id})
@@ -83,6 +89,7 @@ defmodule Backend.Rooms.RoomServer do
   #   monitors - %{monitor_ref => player_id}, one entry per live channel connection
   #   expiry   - %{player_id => {token, timer}}, a pending "remove if still away" timer
   #   reveal_ms - how long the reveal lasts
+  #   vote_ms / guess_ms - how long the vote, and the caught imposter's guess, last
   #   turn_ms - fixed turn length (tests only); normally the room's draw_time setting is used
   #   drawer_away_ms - how long a turn waits for a drawer who dropped before moving on
   #   phase_timer - {token, timer} for whatever ends the current phase/turn (only one at a time)
@@ -101,6 +108,8 @@ defmodule Backend.Rooms.RoomServer do
       reveal_ms: Keyword.fetch!(opts, :reveal_ms),
       turn_ms: Keyword.get(opts, :turn_ms),
       drawer_away_ms: Keyword.get(opts, :drawer_away_ms, 8_000),
+      vote_ms: Keyword.get(opts, :vote_ms, 30_000),
+      guess_ms: Keyword.get(opts, :guess_ms, 20_000),
       phase_timer: nil,
       monitors: %{},
       expiry: %{}
@@ -218,6 +227,31 @@ defmodule Backend.Rooms.RoomServer do
     end
   end
 
+  # A vote may be the last one needed, in which case the vote closes on the spot.
+  def handle_call({:vote, player_id, target_id}, _from, state) do
+    case Voting.vote(state.room, player_id, target_id) do
+      {:ok, room} ->
+        state = state |> put_room(room) |> close_voting_if_done()
+        broadcast(state.room)
+        {:reply, :ok, state}
+
+      {:error, _reason} = error ->
+        {:reply, error, state}
+    end
+  end
+
+  def handle_call({:guess, player_id, text}, _from, state) do
+    case Voting.guess(state.room, player_id, text) do
+      {:ok, room} ->
+        state = state |> put_room(room) |> arm_phase_timer()
+        broadcast(state.room)
+        {:reply, :ok, state}
+
+      {:error, _reason} = error ->
+        {:reply, error, state}
+    end
+  end
+
   def handle_call({:finish_turn, player_id}, _from, state) do
     if Room.drawer?(state.room, player_id) do
       {:reply, :ok, advance_turn(state)}
@@ -244,6 +278,7 @@ defmodule Backend.Rooms.RoomServer do
             |> put_room(Room.set_connected(state.room, player_id, false))
             |> schedule_expiry(player_id)
             |> hurry_away_drawer(player_id)
+            |> close_voting_if_done()
 
           broadcast(state.room)
           {:noreply, state}
@@ -255,7 +290,7 @@ defmodule Backend.Rooms.RoomServer do
   def handle_info({:end_reveal, token}, %{phase_timer: {token, _timer}} = state) do
     case Room.end_reveal(state.room, now_ms(), turn_ms(state)) do
       {:ok, room} ->
-        state = state |> put_room(room) |> arm_turn_timer()
+        state = state |> put_room(room) |> arm_phase_timer()
         broadcast(state.room)
         {:noreply, state}
 
@@ -269,9 +304,25 @@ defmodule Backend.Rooms.RoomServer do
     {:noreply, advance_turn(state)}
   end
 
+  # The vote time is up. Whoever didn't vote simply didn't.
+  def handle_info({:end_vote, token}, %{phase_timer: {token, _timer}} = state) do
+    state = close_voting(state)
+    broadcast(state.room)
+    {:noreply, state}
+  end
+
+  # The caught imposter ran out of time to guess.
+  def handle_info({:end_guess, token}, %{phase_timer: {token, _timer}} = state) do
+    {:ok, room} = Voting.give_up(state.room)
+    state = state |> put_room(room) |> arm_phase_timer()
+    broadcast(state.room)
+    {:noreply, state}
+  end
+
   # A timer that has since been replaced or cancelled: ignore it.
-  def handle_info({tag, _stale_token}, state) when tag in [:end_reveal, :end_turn],
-    do: {:noreply, state}
+  def handle_info({tag, _stale_token}, state)
+      when tag in [:end_reveal, :end_turn, :end_vote, :end_guess],
+      do: {:noreply, state}
 
   # The grace period ended. The token check ignores a timer that a reconnect has since replaced.
   def handle_info({:expire, player_id, token}, state) do
@@ -322,7 +373,9 @@ defmodule Backend.Rooms.RoomServer do
         {:open, advance_turn(state)}
 
       true ->
-        broadcast(room)
+        # if they were the last one the vote was waiting for, it can close now
+        state = close_voting_if_done(state)
+        broadcast(state.room)
         {:open, state}
     end
   end
@@ -346,19 +399,38 @@ defmodule Backend.Rooms.RoomServer do
     %{state | phase_timer: nil}
   end
 
-  # After the room moved to a new turn (or to voting): time the turn, or stop timing.
-  defp arm_turn_timer(%{room: %{phase: :drawing} = room} = state),
+  # After the room moved to a new phase (or turn): start the timer that will end it, or, when
+  # nothing is timed (the lobby, the result), stop timing.
+  defp arm_phase_timer(%{room: %{phase: :drawing} = room} = state),
     do: set_phase_timer(state, :end_turn, Room.turn_ms_left(room, now_ms()))
 
-  defp arm_turn_timer(state), do: clear_phase_timer(state)
+  defp arm_phase_timer(%{room: %{phase: :voting, game: game}} = state),
+    do: set_phase_timer(state, :end_vote, max(game.vote_ends_at - now_ms(), 0))
+
+  defp arm_phase_timer(%{room: %{phase: :guess, game: game}} = state),
+    do: set_phase_timer(state, :end_guess, max(game.guess_ends_at - now_ms(), 0))
+
+  defp arm_phase_timer(state), do: clear_phase_timer(state)
+
+  defp close_voting_if_done(%{room: %{phase: :voting}} = state) do
+    if Voting.all_voted?(state.room), do: close_voting(state), else: state
+  end
+
+  defp close_voting_if_done(state), do: state
+
+  # Count the votes. Either the imposter was caught (and gets a guess) or the round is over.
+  defp close_voting(state) do
+    {:ok, room} = Voting.close(state.room, now_ms(), state.guess_ms)
+    state |> put_room(room) |> arm_phase_timer()
+  end
 
   defp advance_turn(state) do
     # A stroke still being drawn when the turn ends will never get its "end" from the drawer (it
     # would be refused: it's no longer their turn). Close it for everyone, or watchers would be
     # left with a stroke that never finishes.
     unfinished = state.room.game.open_stroke
-    room = Room.next_turn(state.room, now_ms(), turn_ms(state))
-    state = state |> put_room(room) |> arm_turn_timer()
+    room = Room.next_turn(state.room, now_ms(), turn_ms(state), state.vote_ms)
+    state = state |> put_room(room) |> arm_phase_timer()
     if unfinished, do: broadcast_draw(room, nil, %{type: "end", id: unfinished})
     broadcast(room)
     state

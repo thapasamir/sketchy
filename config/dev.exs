@@ -89,3 +89,9 @@ config :backend, reveal_ms: String.to_integer(System.get_env("REVEAL_MS", "8000"
 if turn_ms = System.get_env("TURN_MS") do
   config :backend, turn_ms: String.to_integer(turn_ms)
 end
+
+# How long the vote (default 30s) and a caught imposter's guess (default 20s) last:
+#   VOTE_MS=8000 GUESS_MS=8000 mix phx.server
+config :backend,
+  vote_ms: String.to_integer(System.get_env("VOTE_MS", "30000")),
+  guess_ms: String.to_integer(System.get_env("GUESS_MS", "20000"))

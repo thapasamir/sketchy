@@ -77,6 +77,13 @@ defmodule Backend.Rooms do
   @doc "The drawer takes back their last stroke of this turn. Returns `{:ok, %{type: \"undo\", id: id}}`."
   def undo(code, player_id, origin), do: RoomServer.undo(normalize_code(code), player_id, origin)
 
+  @doc "Vote for who you think the imposter is. Returns `:ok` or `{:error, reason}`."
+  def vote(code, player_id, target_id),
+    do: RoomServer.vote(normalize_code(code), player_id, target_id)
+
+  @doc "The caught imposter's guess at the word (`text` comes straight from the browser)."
+  def guess(code, player_id, text), do: RoomServer.guess(normalize_code(code), player_id, text)
+
   @doc "The drawer ends their turn early."
   def finish_turn(code, player_id), do: RoomServer.finish_turn(normalize_code(code), player_id)
 
@@ -107,7 +114,9 @@ defmodule Backend.Rooms do
        grace_ms: grace_ms(),
        reveal_ms: reveal_ms(),
        turn_ms: Application.get_env(:backend, :turn_ms),
-       drawer_away_ms: Application.get_env(:backend, :drawer_away_ms, 8_000)}
+       drawer_away_ms: Application.get_env(:backend, :drawer_away_ms, 8_000),
+       vote_ms: Application.get_env(:backend, :vote_ms, 30_000),
+       guess_ms: Application.get_env(:backend, :guess_ms, 20_000)}
 
     case DynamicSupervisor.start_child(Backend.RoomSupervisor, spec) do
       {:ok, _pid} -> {:ok, %{code: code, player_id: host.id}}

@@ -286,4 +286,110 @@ defmodule BackendWeb.RoomChannelTest do
       assert {:ok, %{strokes: []}, _} = join_room("room:" <> code, %{"player_id" => id})
     end
   end
+
+  describe "voting" do
+    setup do
+      {:ok, %{code: code, player_id: host}} = Rooms.create_room("Host")
+      {:ok, %{player_id: p2}} = Rooms.join_room(code, "Two")
+      {:ok, %{player_id: p3}} = Rooms.join_room(code, "Three")
+
+      sockets =
+        for id <- [host, p2, p3], into: %{} do
+          {:ok, _, socket} = join_room("room:" <> code, %{"player_id" => id})
+          {id, socket}
+        end
+
+      assert_reply push(sockets[p2], "set_ready", %{"ready" => true}), :ok
+      assert_reply push(sockets[p3], "set_ready", %{"ready" => true}), :ok
+      assert_reply push(sockets[host], "start", %{}), :ok
+      assert_push "room_updated", %{room: %{phase: :drawing}}, 2000
+
+      # play out the drawing: each drawer hands the pen on until it runs out
+      {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
+
+      for _ <- 1..(3 * room.settings.rounds) do
+        {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
+        assert_reply push(sockets[room.game.turn.player_id], "finish_turn", %{}), :ok
+      end
+
+      {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
+      assert room.phase == :voting
+      flush_votes_mailbox()
+
+      imposter = room.game.imposter_id
+      [crew_a, crew_b] = Enum.reject([host, p2, p3], &(&1 == imposter))
+
+      %{
+        code: code,
+        sockets: sockets,
+        imposter: imposter,
+        crew_a: crew_a,
+        crew_b: crew_b,
+        word: room.game.entry.word
+      }
+    end
+
+    defp flush_votes_mailbox do
+      receive do
+        _ -> flush_votes_mailbox()
+      after
+        50 -> :ok
+      end
+    end
+
+    test "a vote is accepted, and the room says who has voted but not for whom", ctx do
+      assert_reply push(ctx.sockets[ctx.crew_a], "vote", %{"target_id" => ctx.imposter}), :ok
+
+      assert_push "room_updated", %{room: %{vote: %{voted: voted} = vote}}
+      assert voted == [ctx.crew_a]
+      refute Map.has_key?(vote, :votes)
+    end
+
+    test "your own vote is told to you when you come back", ctx do
+      assert_reply push(ctx.sockets[ctx.crew_a], "vote", %{"target_id" => ctx.imposter}), :ok
+
+      assert {:ok, %{vote: vote}, _} =
+               join_room("room:" <> ctx.code, %{"player_id" => ctx.crew_a})
+
+      assert vote == ctx.imposter
+
+      assert {:ok, %{vote: nil}, _} = join_room("room:" <> ctx.code, %{"player_id" => ctx.crew_b})
+    end
+
+    test "bad votes are refused with a reason", ctx do
+      ref = push(ctx.sockets[ctx.crew_a], "vote", %{"target_id" => ctx.crew_a})
+      assert_reply ref, :error, %{reason: "cannot_vote_self"}
+
+      ref = push(ctx.sockets[ctx.crew_a], "vote", %{"target_id" => "ghost"})
+      assert_reply ref, :error, %{reason: "not_a_member"}
+    end
+
+    test "catching the imposter, their guess, and the result that shows the word", ctx do
+      for voter <- Map.keys(ctx.sockets) do
+        target = if voter == ctx.imposter, do: ctx.crew_a, else: ctx.imposter
+        assert_reply push(ctx.sockets[voter], "vote", %{"target_id" => target}), :ok
+      end
+
+      assert_push "room_updated", %{room: %{phase: :guess, guess: %{guesser_id: guesser}}}
+      assert guesser == ctx.imposter
+
+      ref = push(ctx.sockets[ctx.crew_a], "guess", %{"text" => ctx.word})
+      assert_reply ref, :error, %{reason: "not_imposter"}
+
+      assert_reply push(ctx.sockets[ctx.imposter], "guess", %{"text" => ctx.word}), :ok
+
+      assert_push "room_updated", %{
+        room: %{phase: :result, result: %{outcome: :guessed, word: word, imposter_id: id}}
+      }
+
+      assert word == ctx.word
+      assert id == ctx.imposter
+    end
+
+    test "while voting, the word is nowhere in what the room pushes", ctx do
+      assert_reply push(ctx.sockets[ctx.crew_a], "vote", %{"target_id" => ctx.imposter}), :ok
+      assert_push "room_updated", %{room: room}
+      refute inspect(room) =~ ctx.word
+    end
+  end
 end

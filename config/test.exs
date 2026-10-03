@@ -39,3 +39,6 @@ config :backend, reveal_ms: 200
 # a turn is the room's draw time (30s+) in the real game; short here, and a vanished drawer is
 # given up on quickly
 config :backend, turn_ms: 1_500, drawer_away_ms: 150
+
+# the vote and the caught imposter's guess are 30s / 20s in the real game
+config :backend, vote_ms: 1_500, guess_ms: 1_000
