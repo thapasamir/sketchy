@@ -3,6 +3,8 @@
   import Wordmark from '../components/Wordmark.svelte'
   import Button from '../components/Button.svelte'
   import Card from '../components/Card.svelte'
+  import GameScreen from '../components/GameScreen.svelte'
+  import { createStrokeStore } from '../lib/strokes.js'
   import { joinRoom } from '../lib/socket.js'
 
   const dispatch = createEventDispatcher()
@@ -18,6 +20,9 @@
   // sends it only to this player; it is never part of the shared room.
   let secret = null
   let channel = null
+  // the shared picture; lives here (not in the board) so strokes aren't lost between screens
+  const strokes = createStrokeStore()
+  let drawError = ''
   let actionError = ''
   let copied = ''
 
@@ -29,6 +34,7 @@
   $: minPlayers = room?.min_players ?? 3
   $: playing = !!room && room.phase !== 'lobby'
   $: revealing = room?.phase === 'reveal'
+  $: inGame = room?.phase === 'drawing' || room?.phase === 'voting'
 
   // countdown while everyone reads their card
   let secondsLeft = 0
@@ -78,15 +84,17 @@
 
   onMount(() => {
     channel = joinRoom(roomCode, playerId, {
-      onJoined: (r, s) => {
+      onJoined: (r, s, picture) => {
         room = r
         secret = s
+        strokes.load(picture)
         status = 'live'
       },
       onUpdate: (r, s) => {
         room = r
         secret = s
       },
+      onDraw: event => strokes.apply(event),
       onKicked: () => dispatch('gone', 'The host removed you from the room.'),
       onError: reason => {
         const message = reasons[reason] || 'Could not connect to the room.'
@@ -117,6 +125,47 @@
       .receive('error', ({ reason }) => (actionError = actionErrors[reason] || 'Something went wrong.'))
       .receive('timeout', () => (actionError = reasons.timeout))
   }
+
+  const drawErrors = {
+    not_your_turn: '',
+    too_many_strokes: 'That is enough strokes for one turn.',
+    canvas_full: 'The canvas is full.',
+    stroke_too_long: 'That stroke got too long. Lift the pen and start a new one.',
+  }
+
+  // The drawer's own screen is drawn before the server has agreed to anything. If the server
+  // refused part of it (the turn ran out mid-stroke, too many strokes), that part is on this
+  // screen only. Asking for the server's picture puts everyone back on the same one.
+  function resync() {
+    channel.push('sync', {}).receive('ok', ({ strokes: picture }) => strokes.load(picture))
+  }
+
+  // Strokes are sent without waiting for an answer; the server only answers to refuse.
+  function sendStroke(event) {
+    channel.push('draw', event).receive('error', ({ reason }) => {
+      drawError = drawErrors[reason] ?? ''
+      resync()
+    })
+  }
+
+  // when the pen leaves my hands, make sure my screen matches the real picture
+  let hadPen = false
+  $: {
+    const hasPen = room?.phase === 'drawing' && room.turn?.player_id === playerId
+    if (hadPen && !hasPen && channel) resync()
+    hadPen = hasPen
+  }
+
+  function undo() {
+    drawError = ''
+    channel.push('undo', {}).receive('ok', event => strokes.apply(event))
+  }
+
+  const finishTurn = () => channel.push('finish_turn', {})
+
+  // a complaint about one turn shouldn't follow you into the next
+  $: turnKey = room?.turn ? `${room.turn.player_id}:${room.turn.lap}` : ''
+  $: if (turnKey !== undefined) drawError = ''
 
   const toggleReady = () => send('set_ready', { ready: !myReady })
 
@@ -151,7 +200,8 @@
   const labelClass = 'mb-2 block font-stamp text-xs uppercase tracking-widest'
 </script>
 
-<main class="mx-auto flex min-h-dvh w-full max-w-4xl flex-col gap-8 px-4 py-6 sm:py-8">
+<main
+  class="mx-auto flex min-h-dvh w-full flex-col gap-8 px-4 py-6 sm:py-8 {inGame ? 'max-w-6xl' : 'max-w-4xl'}">
   <header class="flex items-center justify-between gap-4">
     <Wordmark class="text-3xl sm:text-4xl" />
     <Button class="px-4 py-2.5 font-stamp text-sm sm:px-6" on:click={() => dispatch('leave')}>← Leave</Button>
@@ -169,6 +219,17 @@
   {:else if status === 'connecting'}
     <p class="text-center font-stamp text-riso-muted">Opening room…</p>
   {:else}
+    {#if inGame}
+      <GameScreen
+        {room}
+        {secret}
+        {playerId}
+        store={strokes}
+        send={sendStroke}
+        {undo}
+        {finishTurn}
+        error={drawError} />
+    {:else}
     <div class="grid gap-6 md:grid-cols-2">
       <Card>
         <h3 class="mb-5 font-display text-2xl sm:text-3xl">Room Code</h3>
@@ -246,19 +307,15 @@
               <h3 id="secret-role" class="font-display text-xl text-riso-muted">Your secret word</h3>
               <div id="secret-word" class="font-display text-4xl text-riso-blue sm:text-5xl">{secret.word}</div>
               <p class="text-sm text-riso-muted">
-                Draw something that shows you know it, without making it too obvious. One of you doesn't know it.
+                You'll take turns adding to one shared drawing. Show you know the word, without making it too
+                obvious. One of you doesn't know it.
               </p>
             {/if}
           {/if}
 
-          {#if revealing}
-            <p id="reveal-countdown" class="font-stamp text-sm uppercase tracking-widest text-riso-muted">
-              Drawing starts in {secondsLeft}s
-            </p>
-          {:else}
-            <p id="game-started" class="font-display text-2xl">Game on</p>
-            <p class="text-sm text-riso-muted">The drawing board is the next thing we build.</p>
-          {/if}
+          <p id="reveal-countdown" class="font-stamp text-sm uppercase tracking-widest text-riso-muted">
+            Drawing starts in {secondsLeft}s
+          </p>
         </Card>
       {:else}
         <Card class="flex flex-col gap-6">
@@ -270,7 +327,7 @@
           </div>
 
           <div>
-            <label for="rounds" class={labelClass}>Number of Rounds</label>
+            <label for="rounds" class={labelClass}>Rounds (everyone draws once per round)</label>
             <div id="rounds-value" class="mb-2 text-center font-display text-3xl text-riso-blue">{rounds}</div>
             <input
               id="rounds"
@@ -284,7 +341,7 @@
           </div>
 
           <div>
-            <label for="drawtime" class={labelClass}>Draw Time (seconds)</label>
+            <label for="drawtime" class={labelClass}>Seconds per turn</label>
             <div id="drawtime-value" class="mb-2 text-center font-display text-3xl text-riso-blue">{drawTime}s</div>
             <input
               id="drawtime"
@@ -338,5 +395,6 @@
         </Card>
       {/if}
     </div>
+    {/if}
   {/if}
 </main>
