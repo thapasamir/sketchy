@@ -41,6 +41,14 @@ defmodule Backend.Rooms.RoomServer do
     do: call(code, {:update_settings, player_id, changes})
 
   def start_game(code, player_id), do: call(code, {:start_game, player_id})
+
+  @doc "The current drawer sends a stroke event. `origin` is the sending channel (it already has the stroke)."
+  def draw(code, player_id, params, origin), do: call(code, {:draw, player_id, params, origin})
+
+  def undo(code, player_id, origin), do: call(code, {:undo, player_id, origin})
+
+  @doc "The current drawer hands the pen on early."
+  def finish_turn(code, player_id), do: call(code, {:finish_turn, player_id})
   def set_ready(code, player_id, ready?), do: call(code, {:set_ready, player_id, ready?})
 
   @doc "The host removes another player. They are told, and may rejoin like anyone else."
@@ -74,7 +82,10 @@ defmodule Backend.Rooms.RoomServer do
   #   grace_ms - how long an away player keeps their seat
   #   monitors - %{monitor_ref => player_id}, one entry per live channel connection
   #   expiry   - %{player_id => {token, timer}}, a pending "remove if still away" timer
-  #   reveal_ms / phase_timer - how long the reveal lasts, and its pending {token, timer}
+  #   reveal_ms - how long the reveal lasts
+  #   turn_ms - fixed turn length (tests only); normally the room's draw_time setting is used
+  #   drawer_away_ms - how long a turn waits for a drawer who dropped before moving on
+  #   phase_timer - {token, timer} for whatever ends the current phase/turn (only one at a time)
 
   @impl true
   def init(opts) do
@@ -88,6 +99,8 @@ defmodule Backend.Rooms.RoomServer do
       room: room,
       grace_ms: Keyword.fetch!(opts, :grace_ms),
       reveal_ms: Keyword.fetch!(opts, :reveal_ms),
+      turn_ms: Keyword.get(opts, :turn_ms),
+      drawer_away_ms: Keyword.get(opts, :drawer_away_ms, 8_000),
       phase_timer: nil,
       monitors: %{},
       expiry: %{}
@@ -124,6 +137,7 @@ defmodule Backend.Rooms.RoomServer do
         |> Map.update!(:monitors, &Map.put(&1, ref, player_id))
         |> cancel_expiry(player_id)
         |> put_room(Room.set_connected(state.room, player_id, true))
+        |> restore_drawer_timer(player_id)
 
       broadcast(state.room)
       {:reply, {:ok, state.room}, state}
@@ -171,12 +185,44 @@ defmodule Backend.Rooms.RoomServer do
   def handle_call({:start_game, player_id}, _from, state) do
     case Room.start_game(state.room, player_id, Dealer.deal(state.room)) do
       {:ok, room} ->
-        state = state |> put_room(room) |> schedule_reveal_end()
+        state = state |> put_room(room) |> set_phase_timer(:end_reveal, state.reveal_ms)
         broadcast(room)
         {:reply, {:ok, room}, state}
 
       {:error, _reason} = error ->
         {:reply, error, state}
+    end
+  end
+
+  # Strokes are streamed to the other channels as they arrive; the whole room is NOT re-sent for
+  # every few points. The drawer's own channel already drew it, so it is skipped (`origin`).
+  def handle_call({:draw, player_id, params, origin}, _from, state) do
+    case Room.draw(state.room, player_id, params) do
+      {:ok, room, event} ->
+        broadcast_draw(room, origin, event)
+        {:reply, :ok, put_room(state, room)}
+
+      {:error, _reason} = error ->
+        {:reply, error, state}
+    end
+  end
+
+  def handle_call({:undo, player_id, origin}, _from, state) do
+    case Room.undo(state.room, player_id) do
+      {:ok, room, event} ->
+        broadcast_draw(room, origin, event)
+        {:reply, {:ok, event}, put_room(state, room)}
+
+      {:error, _reason} = error ->
+        {:reply, error, state}
+    end
+  end
+
+  def handle_call({:finish_turn, player_id}, _from, state) do
+    if Room.drawer?(state.room, player_id) do
+      {:reply, :ok, advance_turn(state)}
+    else
+      {:reply, {:error, :not_your_turn}, state}
     end
   end
 
@@ -197,6 +243,7 @@ defmodule Backend.Rooms.RoomServer do
             state
             |> put_room(Room.set_connected(state.room, player_id, false))
             |> schedule_expiry(player_id)
+            |> hurry_away_drawer(player_id)
 
           broadcast(state.room)
           {:noreply, state}
@@ -206,17 +253,25 @@ defmodule Backend.Rooms.RoomServer do
 
   # The reveal is over: everyone has had time to read their card, so drawing starts.
   def handle_info({:end_reveal, token}, %{phase_timer: {token, _timer}} = state) do
-    case Room.end_reveal(state.room) do
+    case Room.end_reveal(state.room, now_ms(), turn_ms(state)) do
       {:ok, room} ->
-        broadcast(room)
-        {:noreply, %{put_room(state, room) | phase_timer: nil}}
+        state = state |> put_room(room) |> arm_turn_timer()
+        broadcast(state.room)
+        {:noreply, state}
 
       {:error, _reason} ->
         {:noreply, %{state | phase_timer: nil}}
     end
   end
 
-  def handle_info({:end_reveal, _stale_token}, state), do: {:noreply, state}
+  # The turn's time is up: pass the pen on.
+  def handle_info({:end_turn, token}, %{phase_timer: {token, _timer}} = state) do
+    {:noreply, advance_turn(state)}
+  end
+
+  # A timer that has since been replaced or cancelled: ignore it.
+  def handle_info({tag, _stale_token}, state) when tag in [:end_reveal, :end_turn],
+    do: {:noreply, state}
 
   # The grace period ended. The token check ignores a timer that a reconnect has since replaced.
   def handle_info({:expire, player_id, token}, state) do
@@ -259,18 +314,87 @@ defmodule Backend.Rooms.RoomServer do
     room = Room.remove_player(state.room, player_id)
     state = put_room(state, room)
 
-    if map_size(room.players) == 0 do
-      {:closed, state}
-    else
-      broadcast(room)
-      {:open, state}
+    cond do
+      map_size(room.players) == 0 ->
+        {:closed, state}
+
+      drawer_left?(state, player_id) ->
+        {:open, advance_turn(state)}
+
+      true ->
+        broadcast(room)
+        {:open, state}
     end
   end
 
-  defp schedule_reveal_end(state) do
+  # --- turns ---
+
+  defp now_ms, do: System.system_time(:millisecond)
+
+  defp turn_ms(state), do: state.turn_ms || state.room.settings.draw_time * 1000
+
+  # Replace whatever timer was pending with one that sends `{tag, token}` after `ms`.
+  # The token lets a message from a replaced timer that already fired be recognised and ignored.
+  defp set_phase_timer(state, tag, ms) do
+    with {_token, timer} <- state.phase_timer, do: Process.cancel_timer(timer)
     token = make_ref()
-    timer = Process.send_after(self(), {:end_reveal, token}, state.reveal_ms)
-    %{state | phase_timer: {token, timer}}
+    %{state | phase_timer: {token, Process.send_after(self(), {tag, token}, ms)}}
+  end
+
+  defp clear_phase_timer(state) do
+    with {_token, timer} <- state.phase_timer, do: Process.cancel_timer(timer)
+    %{state | phase_timer: nil}
+  end
+
+  # After the room moved to a new turn (or to voting): time the turn, or stop timing.
+  defp arm_turn_timer(%{room: %{phase: :drawing} = room} = state),
+    do: set_phase_timer(state, :end_turn, Room.turn_ms_left(room, now_ms()))
+
+  defp arm_turn_timer(state), do: clear_phase_timer(state)
+
+  defp advance_turn(state) do
+    # A stroke still being drawn when the turn ends will never get its "end" from the drawer (it
+    # would be refused: it's no longer their turn). Close it for everyone, or watchers would be
+    # left with a stroke that never finishes.
+    unfinished = state.room.game.open_stroke
+    room = Room.next_turn(state.room, now_ms(), turn_ms(state))
+    state = state |> put_room(room) |> arm_turn_timer()
+    if unfinished, do: broadcast_draw(room, nil, %{type: "end", id: unfinished})
+    broadcast(room)
+    state
+  end
+
+  defp drawer_left?(state, player_id) do
+    state.room.phase == :drawing and state.room.game.turn != nil and
+      state.room.game.turn.player_id == player_id
+  end
+
+  # The drawer dropped (closed the tab, lost wifi, or is just refreshing). Everyone else
+  # shouldn't wait out a whole turn, but a refresh shouldn't cost the turn either: give them a
+  # short window, and `restore_drawer_timer/2` gives the time back if they return.
+  defp hurry_away_drawer(state, player_id) do
+    if Room.drawer?(state.room, player_id) do
+      left = Room.turn_ms_left(state.room, now_ms())
+      set_phase_timer(state, :end_turn, min(left, state.drawer_away_ms))
+    else
+      state
+    end
+  end
+
+  defp restore_drawer_timer(state, player_id) do
+    if Room.drawer?(state.room, player_id) do
+      set_phase_timer(state, :end_turn, Room.turn_ms_left(state.room, now_ms()))
+    else
+      state
+    end
+  end
+
+  defp broadcast_draw(room, origin, event) do
+    Phoenix.PubSub.broadcast(
+      Backend.PubSub,
+      "rooms:" <> room.code,
+      {:draw_event, origin, event}
+    )
   end
 
   defp schedule_expiry(state, player_id) do

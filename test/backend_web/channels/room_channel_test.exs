@@ -140,4 +140,150 @@ defmodule BackendWeb.RoomChannelTest do
       200 -> acc |> Enum.uniq()
     end
   end
+
+  describe "drawing" do
+    setup do
+      {:ok, %{code: code, player_id: host}} = Rooms.create_room("Host")
+      {:ok, %{player_id: p2}} = Rooms.join_room(code, "Two")
+      {:ok, %{player_id: p3}} = Rooms.join_room(code, "Three")
+
+      sockets =
+        for id <- [host, p2, p3], into: %{} do
+          {:ok, _, socket} = join_room("room:" <> code, %{"player_id" => id})
+          {id, socket}
+        end
+
+      assert_reply push(sockets[p2], "set_ready", %{"ready" => true}), :ok
+      assert_reply push(sockets[p3], "set_ready", %{"ready" => true}), :ok
+      assert_reply push(sockets[host], "start", %{}), :ok
+      assert_push "room_updated", %{room: %{phase: :drawing}}, 2000
+      # the other two sockets get the same push; then forget the lobby's and the reveal's too
+      Process.sleep(50)
+      flush_mailbox()
+
+      {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
+      drawer = room.game.turn.player_id
+      guest = Enum.find(Map.keys(sockets), &(&1 != drawer))
+      %{code: code, sockets: sockets, drawer: drawer, guest: guest, ids: Map.keys(sockets)}
+    end
+
+    defp flush_mailbox do
+      receive do
+        _ -> flush_mailbox()
+      after
+        0 -> :ok
+      end
+    end
+
+    defp start_stroke(id),
+      do: %{"type" => "start", "id" => id, "size" => 2, "x" => 0.3, "y" => 0.4}
+
+    test "the drawer's strokes are pushed to the OTHER players, not back to the drawer", ctx do
+      push(ctx.sockets[ctx.drawer], "draw", start_stroke("a"))
+
+      # two other players, two pushes (all three sockets report to this one test process)
+      assert_push "draw", %{
+        type: "start",
+        id: "a",
+        player_id: _,
+        color: "#" <> _,
+        points: [[0.3, 0.4]]
+      }
+
+      assert_push "draw", %{type: "start", id: "a"}
+      refute_push "draw", _, 100
+    end
+
+    test "a successful stroke is not acknowledged (it would double the traffic)", ctx do
+      ref = push(ctx.sockets[ctx.drawer], "draw", start_stroke("a"))
+      refute_reply ref, _, 100
+    end
+
+    test "someone who is not drawing is told so, and nothing is shown to anyone", ctx do
+      ref = push(ctx.sockets[ctx.guest], "draw", start_stroke("a"))
+      assert_reply ref, :error, %{reason: "not_your_turn"}
+      refute_push "draw", _, 100
+    end
+
+    test "nonsense is refused", ctx do
+      ref = push(ctx.sockets[ctx.drawer], "draw", %{"type" => "start", "size" => 99})
+      assert_reply ref, :error, %{reason: "invalid_event"}
+      ref = push(ctx.sockets[ctx.drawer], "draw", %{})
+      assert_reply ref, :error, %{reason: "invalid_event"}
+    end
+
+    test "undo is answered with the stroke that was removed, and shown to the others", ctx do
+      push(ctx.sockets[ctx.drawer], "draw", start_stroke("a"))
+      assert_push "draw", %{id: "a"}
+      assert_push "draw", %{id: "a"}
+
+      ref = push(ctx.sockets[ctx.drawer], "undo", %{})
+      assert_reply ref, :ok, %{type: "undo", id: "a"}
+      assert_push "draw", %{type: "undo", id: "a"}
+    end
+
+    test "a guest cannot undo", ctx do
+      ref = push(ctx.sockets[ctx.guest], "undo", %{})
+      assert_reply ref, :error, %{reason: "not_your_turn"}
+    end
+
+    test "finishing a turn hands the pen to the next player", ctx do
+      assert_reply push(ctx.sockets[ctx.drawer], "finish_turn", %{}), :ok
+      assert_push "room_updated", %{room: %{turn: %{player_id: next}}}
+      assert next != ctx.drawer
+
+      ref = push(ctx.sockets[ctx.drawer], "finish_turn", %{})
+      assert_reply ref, :error, %{reason: "not_your_turn"}
+    end
+
+    test "the room update names whose turn it is and carries colours, but not the picture", ctx do
+      assert_reply push(ctx.sockets[ctx.drawer], "finish_turn", %{}), :ok
+      assert_push "room_updated", %{room: room}
+
+      assert %{player_id: _, lap: 1, laps: 3, ms_left: ms} = room.turn
+      assert ms > 0
+      assert Enum.all?(room.players, &is_binary(&1.color))
+      refute Map.has_key?(room, :strokes)
+    end
+
+    test "someone who joins mid-game is given the picture so far", ctx do
+      push(ctx.sockets[ctx.drawer], "draw", start_stroke("a"))
+
+      push(ctx.sockets[ctx.drawer], "draw", %{
+        "type" => "points",
+        "id" => "a",
+        "points" => [[0.5, 0.5]]
+      })
+
+      # a refresh: the same player joins again on a new socket
+      assert {:ok, reply, _socket} = join_room("room:" <> ctx.code, %{"player_id" => ctx.guest})
+
+      assert [%{id: "a", player_id: drawer, points: [[0.3, 0.4], [0.5, 0.5]], color: "#" <> _}] =
+               reply.strokes
+
+      assert drawer == ctx.drawer
+    end
+
+    test "sync gives back the picture exactly as the server has it", ctx do
+      push(ctx.sockets[ctx.drawer], "draw", start_stroke("a"))
+
+      ref = push(ctx.sockets[ctx.drawer], "sync", %{})
+      assert_reply ref, :ok, %{strokes: [%{id: "a", points: [[0.3, 0.4]]}]}
+    end
+
+    test "sync is for members only", ctx do
+      {:ok, %{code: other_code, player_id: stranger}} = Rooms.create_room("Elsewhere")
+      {:ok, _, socket} = join_room("room:" <> other_code, %{"player_id" => stranger})
+
+      # a member of ANOTHER room gets that room's (empty) picture, never this one's
+      push(ctx.sockets[ctx.drawer], "draw", start_stroke("a"))
+      ref = push(socket, "sync", %{})
+      assert_reply ref, :ok, %{strokes: []}
+    end
+
+    test "before the game there is no picture", _ctx do
+      {:ok, %{code: code, player_id: id}} = Rooms.create_room("Solo")
+      assert {:ok, %{strokes: []}, _} = join_room("room:" <> code, %{"player_id" => id})
+    end
+  end
 end

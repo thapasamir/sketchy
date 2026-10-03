@@ -35,3 +35,7 @@ config :backend, reconnect_grace_ms: 300
 
 # the reveal lasts 8s in the real game; short here so tests can watch it end
 config :backend, reveal_ms: 200
+
+# a turn is the room's draw time (30s+) in the real game; short here, and a vanished drawer is
+# given up on quickly
+config :backend, turn_ms: 1_500, drawer_away_ms: 150

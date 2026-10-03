@@ -11,6 +11,16 @@ defmodule Backend.Rooms.Room do
   @round_range 2..4
   @draw_time_range 30..90//10
 
+  # One colour per seat, so everyone can tell who drew what. Eight seats, eight colours.
+  @colors ~w(#ff48b0 #0078bf #ff7a1a #14a76c #8a4fd6 #e63946 #c99700 #1fb5b5)
+
+  # Limits on what one browser may send. The server never trusts the client's idea of "reasonable".
+  @brush_sizes [1, 2, 3]
+  @max_points_per_batch 80
+  @max_points_per_stroke 3_000
+  @max_strokes_per_turn 30
+  @max_strokes 600
+
   defstruct code: nil,
             host_id: nil,
             phase: :lobby,
@@ -81,7 +91,14 @@ defmodule Backend.Rooms.Room do
   def remove_player(%__MODULE__{} = room, player_id) do
     players = Map.delete(room.players, player_id)
     host_id = if player_id == room.host_id, do: next_host(players), else: room.host_id
-    %{room | players: players, host_id: host_id}
+    room = %{room | players: players, host_id: host_id}
+
+    if room.game do
+      queue = Enum.reject(room.game.queue, fn {_lap, id} -> id == player_id end)
+      %{room | game: %{room.game | queue: queue}}
+    else
+      room
+    end
   end
 
   defp next_host(players) when map_size(players) == 0, do: nil
@@ -142,16 +159,222 @@ defmodule Backend.Rooms.Room do
         imposter_history: deal.imposter_history,
         entry: deal.entry,
         hint: deal.hint,
-        used_words: deal.used_words
+        used_words: deal.used_words,
+        turn_order: deal.turn_order,
+        colors: assign_colors(room.players),
+        # the drawing: newest stroke first (cheap to add to), see `strokes_public/1`
+        strokes: [],
+        open_stroke: nil,
+        queue: [],
+        turn: nil,
+        turn_n: 0
       }
 
       {:ok, %{room | phase: :reveal, game: game}}
     end
   end
 
-  @doc "Move on from the reveal to the drawing phase."
-  def end_reveal(%__MODULE__{phase: :reveal} = room), do: {:ok, %{room | phase: :drawing}}
-  def end_reveal(%__MODULE__{}), do: {:error, :not_revealing}
+  @doc """
+  Move on from the reveal to the drawing phase and start the first turn. `now` is the current
+  time in ms and `turn_ms` how long a turn lasts; they are passed in so this stays pure.
+  """
+  def end_reveal(%__MODULE__{phase: :reveal} = room, now, turn_ms) do
+    # every lap, everyone draws once, in the same order
+    queue = for lap <- 1..room.settings.rounds, id <- room.game.turn_order, do: {lap, id}
+    room = %{room | phase: :drawing, game: %{room.game | queue: queue}}
+    {:ok, next_turn(room, now, turn_ms)}
+  end
+
+  def end_reveal(%__MODULE__{}, _now, _turn_ms), do: {:error, :not_revealing}
+
+  @doc """
+  Hand the pen to the next player in the queue. Anyone who has left, or is away right now, is
+  skipped. When nobody is left the drawing is finished and the room moves on to voting.
+  """
+  def next_turn(%__MODULE__{game: game} = room, now, turn_ms) do
+    {next, rest} = pop_drawer(game.queue, room)
+
+    case next do
+      nil ->
+        %{room | phase: :voting, game: %{game | queue: [], turn: nil, open_stroke: nil}}
+
+      {lap, player_id} ->
+        turn = %{player_id: player_id, lap: lap, n: game.turn_n + 1, ends_at: now + turn_ms}
+        %{room | game: %{game | queue: rest, turn: turn, turn_n: turn.n, open_stroke: nil}}
+    end
+  end
+
+  defp pop_drawer([], _room), do: {nil, []}
+
+  defp pop_drawer([{_lap, id} = next | rest], room) do
+    case room.players do
+      %{^id => %{connected?: true}} -> {next, rest}
+      _ -> pop_drawer(rest, room)
+    end
+  end
+
+  @doc "Is it `player_id`'s turn to draw right now?"
+  def drawer?(%__MODULE__{phase: :drawing, game: %{turn: %{player_id: id}}}, id), do: true
+  def drawer?(%__MODULE__{}, _player_id), do: false
+
+  @doc "Milliseconds left in the current turn (0 if there is none)."
+  def turn_ms_left(%__MODULE__{game: %{turn: %{ends_at: ends_at}}}, now),
+    do: max(ends_at - now, 0)
+
+  def turn_ms_left(%__MODULE__{}, _now), do: 0
+
+  @doc """
+  The current drawer sends a drawing event: `%{"type" => "start" | "points" | "end", ...}`.
+  Returns `{:ok, room, event}` where `event` is the cleaned version that is safe to show everyone
+  else, or `{:error, reason}`. Everything from the browser is checked and clamped here.
+  """
+  def draw(%__MODULE__{} = room, player_id, %{"type" => "start"} = params) do
+    with :ok <- check_drawer(room, player_id),
+         {:ok, id} <- parse_id(params),
+         {:ok, size} <- parse_size(params),
+         {:ok, [point]} <- clean_points([[params["x"], params["y"]]]),
+         :ok <- check_stroke_budget(room) do
+      game = room.game
+
+      stroke = %{
+        id: id,
+        player_id: player_id,
+        turn: game.turn.n,
+        color: game.colors[player_id],
+        size: size,
+        points: [point],
+        count: 1
+      }
+
+      room = %{room | game: %{game | strokes: [stroke | game.strokes], open_stroke: id}}
+
+      {:ok, room,
+       %{
+         type: "start",
+         id: id,
+         player_id: player_id,
+         color: stroke.color,
+         size: size,
+         points: [point]
+       }}
+    end
+  end
+
+  def draw(%__MODULE__{} = room, player_id, %{"type" => "points", "points" => points} = params)
+      when is_list(points) and length(points) in 1..@max_points_per_batch do
+    with :ok <- check_drawer(room, player_id),
+         {:ok, id} <- parse_id(params),
+         {:ok, stroke} <- open_stroke(room, id),
+         {:ok, clean} <- clean_points(points),
+         :ok <- check_stroke_length(stroke, clean) do
+      stroke = %{
+        stroke
+        | points: Enum.reverse(clean, stroke.points),
+          count: stroke.count + length(clean)
+      }
+
+      room = put_in(room.game.strokes, [stroke | tl(room.game.strokes)])
+      {:ok, room, %{type: "points", id: id, points: clean}}
+    end
+  end
+
+  def draw(%__MODULE__{} = room, player_id, %{"type" => "end"} = params) do
+    with :ok <- check_drawer(room, player_id),
+         {:ok, id} <- parse_id(params),
+         {:ok, _stroke} <- open_stroke(room, id) do
+      {:ok, put_in(room.game.open_stroke, nil), %{type: "end", id: id}}
+    end
+  end
+
+  def draw(%__MODULE__{}, _player_id, _params), do: {:error, :invalid_event}
+
+  @doc "The drawer takes back their most recent stroke of THIS turn (never anyone else's)."
+  def undo(%__MODULE__{} = room, player_id) do
+    with :ok <- check_drawer(room, player_id) do
+      case room.game.strokes do
+        [%{turn: turn, id: id} | rest] when turn == room.game.turn.n ->
+          room = %{room | game: %{room.game | strokes: rest, open_stroke: nil}}
+          {:ok, room, %{type: "undo", id: id}}
+
+        _ ->
+          {:error, :nothing_to_undo}
+      end
+    end
+  end
+
+  @doc "The whole drawing so far, oldest stroke first, as plain data for a browser."
+  def strokes_public(%__MODULE__{game: nil}), do: []
+
+  def strokes_public(%__MODULE__{game: game}) do
+    game.strokes
+    |> Enum.reverse()
+    |> Enum.map(fn s ->
+      %{
+        id: s.id,
+        player_id: s.player_id,
+        color: s.color,
+        size: s.size,
+        points: Enum.reverse(s.points)
+      }
+    end)
+  end
+
+  defp check_drawer(room, player_id) do
+    if drawer?(room, player_id), do: :ok, else: {:error, :not_your_turn}
+  end
+
+  defp parse_id(%{"id" => id}) when is_binary(id) and byte_size(id) in 1..40, do: {:ok, id}
+  defp parse_id(_), do: {:error, :invalid_event}
+
+  defp parse_size(%{"size" => size}) when size in @brush_sizes, do: {:ok, size}
+  defp parse_size(_), do: {:error, :invalid_event}
+
+  # a stroke that is still being drawn, and only the one the drawer names
+  defp open_stroke(%{game: %{open_stroke: id, strokes: [%{id: id} = stroke | _]}}, id),
+    do: {:ok, stroke}
+
+  defp open_stroke(_room, _id), do: {:error, :no_such_stroke}
+
+  defp clean_points(points) do
+    Enum.reduce_while(points, {:ok, []}, fn
+      [x, y], {:ok, acc} when is_number(x) and is_number(y) ->
+        {:cont, {:ok, [[unit(x), unit(y)] | acc]}}
+
+      _, _ ->
+        {:halt, {:error, :invalid_event}}
+    end)
+    |> case do
+      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      error -> error
+    end
+  end
+
+  # the canvas is a unit square: clamp into it, and 4 decimals is plenty (it is a drawing)
+  defp unit(n), do: Float.round(min(max(n * 1.0, 0.0), 1.0), 4)
+
+  defp check_stroke_budget(%{game: game}) do
+    this_turn = game.strokes |> Enum.take_while(&(&1.turn == game.turn.n)) |> length()
+
+    cond do
+      this_turn >= @max_strokes_per_turn -> {:error, :too_many_strokes}
+      length(game.strokes) >= @max_strokes -> {:error, :canvas_full}
+      true -> :ok
+    end
+  end
+
+  defp check_stroke_length(stroke, clean) do
+    if stroke.count + length(clean) <= @max_points_per_stroke,
+      do: :ok,
+      else: {:error, :stroke_too_long}
+  end
+
+  defp assign_colors(players) do
+    players
+    |> Map.values()
+    |> Enum.sort_by(& &1.joined_at, DateTime)
+    |> Enum.zip(@colors)
+    |> Map.new(fn {player, color} -> {player.id, color} end)
+  end
 
   @doc """
   What THIS player is allowed to know about the round, or nil in the lobby.
@@ -231,12 +454,22 @@ defmodule Backend.Rooms.Room do
   Built by hand on purpose: later the room will hold secrets (the word, who the imposter is),
   and an explicit allow-list means a new field is never sent by accident.
   """
-  def to_public(%__MODULE__{} = room) do
+  def to_public(%__MODULE__{} = room, now \\ System.system_time(:millisecond)) do
+    colors = (room.game && room.game.colors) || %{}
+
     players =
       room.players
       |> Map.values()
       |> Enum.sort_by(& &1.joined_at, DateTime)
-      |> Enum.map(&%{id: &1.id, name: &1.name, connected: &1.connected?, ready: &1.ready?})
+      |> Enum.map(
+        &%{
+          id: &1.id,
+          name: &1.name,
+          connected: &1.connected?,
+          ready: &1.ready?,
+          color: colors[&1.id]
+        }
+      )
 
     %{
       code: room.code,
@@ -244,10 +477,24 @@ defmodule Backend.Rooms.Room do
       phase: room.phase,
       round: room.game && room.game.round,
       reveal_seconds: div(room.reveal_ms, 1000),
+      turn: turn_public(room, now),
       settings: room.settings,
       min_players: @min_players,
       max_players: @max_players,
       players: players
     }
   end
+
+  defp turn_public(%__MODULE__{game: %{turn: %{} = turn}} = room, now) do
+    %{
+      player_id: turn.player_id,
+      lap: turn.lap,
+      laps: room.settings.rounds,
+      # the order everyone draws in, every lap (not a secret: it is on show at the table)
+      order: Enum.filter(room.game.turn_order, &Map.has_key?(room.players, &1)),
+      ms_left: turn_ms_left(room, now)
+    }
+  end
+
+  defp turn_public(_room, _now), do: nil
 end

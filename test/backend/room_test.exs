@@ -14,7 +14,8 @@ defmodule Backend.Rooms.RoomTest do
         hints: ["tall", "savanna", "spots"]
       },
       hint: "savanna",
-      used_words: ["Giraffe"]
+      used_words: ["Giraffe"],
+      turn_order: ["p0", "p1", "p2"]
     }
   end
 
@@ -214,8 +215,8 @@ defmodule Backend.Rooms.RoomTest do
     end
 
     test "the reveal ends in the drawing phase, and only once" do
-      assert {:ok, %{phase: :drawing}} = Room.end_reveal(started())
-      assert {:error, :not_revealing} = Room.end_reveal(room_with(["Host"]))
+      assert {:ok, %{phase: :drawing}} = Room.end_reveal(started(), 0, 1000)
+      assert {:error, :not_revealing} = Room.end_reveal(room_with(["Host"]), 0, 1000)
     end
   end
 end

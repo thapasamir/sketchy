@@ -7,7 +7,7 @@ defmodule Backend.Rooms.Dealer do
   alias Backend.Rooms.{Imposter, Room}
   alias Backend.Words
 
-  @doc "A deal for `room`: `%{imposter_id, imposter_history, entry, hint, used_words}`."
+  @doc "A deal for `room`: `%{imposter_id, imposter_history, entry, hint, used_words, turn_order}`."
   def deal(%Room{} = room) do
     # an away player can't see their card, so they are never chosen when others are present
     connected = for {id, p} <- room.players, p.connected?, do: id
@@ -24,7 +24,9 @@ defmodule Backend.Rooms.Dealer do
       imposter_history: history,
       entry: entry,
       hint: Enum.random(entry.hints),
-      used_words: [entry.word | used]
+      used_words: [entry.word | used],
+      # who draws in which order, every lap; fixed for the whole game
+      turn_order: room.players |> Map.keys() |> Enum.shuffle()
     }
   end
 end

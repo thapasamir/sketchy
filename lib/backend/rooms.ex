@@ -67,6 +67,19 @@ defmodule Backend.Rooms do
   @doc "Host starts the game."
   def start_game(code, player_id), do: RoomServer.start_game(normalize_code(code), player_id)
 
+  @doc """
+  The current drawer draws. `params` come straight from the browser. `origin` is the drawer's
+  channel process: every OTHER subscriber is sent the stroke, the drawer already has it.
+  """
+  def draw(code, player_id, params, origin),
+    do: RoomServer.draw(normalize_code(code), player_id, params, origin)
+
+  @doc "The drawer takes back their last stroke of this turn. Returns `{:ok, %{type: \"undo\", id: id}}`."
+  def undo(code, player_id, origin), do: RoomServer.undo(normalize_code(code), player_id, origin)
+
+  @doc "The drawer ends their turn early."
+  def finish_turn(code, player_id), do: RoomServer.finish_turn(normalize_code(code), player_id)
+
   @doc "Get `{:room_updated, room}` messages in this process whenever the room changes."
   def subscribe(code) do
     Phoenix.PubSub.subscribe(Backend.PubSub, "rooms:" <> normalize_code(code))
@@ -88,7 +101,13 @@ defmodule Backend.Rooms do
     code = generate_code()
 
     spec =
-      {RoomServer, code: code, host: host, grace_ms: grace_ms(), reveal_ms: reveal_ms()}
+      {RoomServer,
+       code: code,
+       host: host,
+       grace_ms: grace_ms(),
+       reveal_ms: reveal_ms(),
+       turn_ms: Application.get_env(:backend, :turn_ms),
+       drawer_away_ms: Application.get_env(:backend, :drawer_away_ms, 8_000)}
 
     case DynamicSupervisor.start_child(Backend.RoomSupervisor, spec) do
       {:ok, _pid} -> {:ok, %{code: code, player_id: host.id}}

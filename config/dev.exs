@@ -83,3 +83,9 @@ config :backend,
 # Seconds everyone looks at their card before drawing starts (default 8s):
 #   REVEAL_MS=2000 mix phx.server
 config :backend, reveal_ms: String.to_integer(System.get_env("REVEAL_MS", "8000"))
+
+# Normally a turn lasts the room's "seconds per turn" setting. To try a quick game:
+#   TURN_MS=5000 mix phx.server
+if turn_ms = System.get_env("TURN_MS") do
+  config :backend, turn_ms: String.to_integer(turn_ms)
+end

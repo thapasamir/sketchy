@@ -22,6 +22,16 @@ defmodule Backend.Rooms.DealerTest do
     assert deal.imposter_history == [deal.imposter_id]
   end
 
+  test "deals a turn order that has every player exactly once" do
+    deal = Dealer.deal(room(connected: ["p0", "p1", "p2", "p3"]))
+    assert Enum.sort(deal.turn_order) == ["p0", "p1", "p2", "p3"]
+  end
+
+  test "the turn order is shuffled, not always join order" do
+    orders = for _ <- 1..100, into: MapSet.new(), do: Dealer.deal(room(connected: [])).turn_order
+    assert MapSet.size(orders) > 5
+  end
+
   test "an away player is never made the imposter" do
     for _ <- 1..200 do
       assert Dealer.deal(room(connected: ["p0", "p1", "p2"])).imposter_id != "p3"
