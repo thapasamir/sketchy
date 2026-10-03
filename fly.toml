@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for sketchy-tidy-cherry-4823 on 2026-10-04T00:54:04+05:45
+# fly.toml app configuration file generated for sketchymain on 2026-10-04T01:10:26+05:45
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'sketchy-tidy-cherry-4823'
+app = 'sketchymain'
 primary_region = 'fra'
 kill_signal = 'SIGTERM'
 
@@ -12,7 +12,7 @@ kill_signal = 'SIGTERM'
   release_command = '/app/bin/migrate'
 
 [env]
-  PHX_HOST = 'sketchy-tidy-cherry-4823.fly.dev'
+  PHX_HOST = 'sketchymain.fly.dev'
   POOL_SIZE = '5'
   PORT = '8080'
 
