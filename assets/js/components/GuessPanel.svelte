@@ -24,7 +24,7 @@
   }
 </script>
 
-<Card id="guess-panel" class="!p-4">
+<Card id="guess-panel" class="animate-rise !p-4">
   {#if iAmCaught}
     <h3 class="font-display text-lg">One last chance</h3>
     <p class="mt-1 text-sm text-riso-muted">

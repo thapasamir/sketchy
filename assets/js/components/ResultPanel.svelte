@@ -1,6 +1,8 @@
 <script>
   import Button from './Button.svelte'
   import Card from './Card.svelte'
+  import CountUp from './CountUp.svelte'
+  import { TIMING } from '../lib/cues.js'
 
   export let room
   export let playerId
@@ -17,33 +19,53 @@
   // highlight the leader(s), unless everyone is level (then it says nothing)
   $: leaders = ranking.filter(p => p.score === top).length
   $: showLeaders = top > 0 && leaders < ranking.length
+
+  // The result is revealed in order, for suspense: the imposter's name stamps in first, then the
+  // word, then who voted for whom, then the points. (TIMING.nameStart is shared with the sounds.)
+  const WORD_AT = TIMING.nameImpact + 300
+  const GUESS_AT = WORD_AT + 400
+  const VOTES_AT = GUESS_AT + 200
+  const SCORES_AT = VOTES_AT + 300
+  const STEP = 90
 </script>
 
 <div class="flex flex-col gap-4">
-  <Card id="reveal-card" class="!p-4 text-center">
+  <Card id="reveal-card" class="animate-rise !p-4 text-center">
     <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">The imposter was</div>
     <div id="reveal-imposter" class="mt-1 flex items-center justify-center gap-2">
-      <span class="h-5 w-5 rounded-full border border-riso-ink/60" style="background:{colorOf(result.imposter_id)}" aria-hidden="true"></span>
-      <span class="break-words font-display text-2xl text-riso-pink mix-blend-multiply">{name(result.imposter_id)}</span>
+      <span
+        style="animation-delay:{TIMING.nameStart}ms"
+        class="inline-flex animate-stamp items-center gap-2">
+        <span class="h-5 w-5 rounded-full border border-riso-ink/60" style="background:{colorOf(result.imposter_id)}" aria-hidden="true"></span>
+        <span class="break-words font-display text-2xl text-riso-pink mix-blend-multiply">{name(result.imposter_id)}</span>
+      </span>
     </div>
     <div class="mt-3 font-stamp text-xs uppercase tracking-widest text-riso-muted">The word was</div>
-    <div id="reveal-word" class="mt-1 break-words font-display text-2xl text-riso-blue">{result.word}</div>
+    <div
+      id="reveal-word"
+      style="animation-delay:{WORD_AT}ms"
+      class="mt-1 animate-pop break-words font-display text-2xl text-riso-blue">
+      {result.word}
+    </div>
     <div class="mt-1 font-stamp text-xs text-riso-muted">{result.category}</div>
     {#if result.guess}
-      <div id="reveal-guess" class="mt-3 font-stamp text-xs text-riso-muted">
+      <div id="reveal-guess" style="animation-delay:{GUESS_AT}ms" class="mt-3 animate-rise font-stamp text-xs text-riso-muted">
         {name(result.imposter_id)} guessed: <b class="text-riso-ink">{result.guess}</b>
       </div>
     {/if}
   </Card>
 
-  <Card id="votes-card" class="!p-4">
+  <Card id="votes-card" style="animation-delay:{VOTES_AT}ms" class="animate-rise !p-4">
     <h3 class="mb-2 font-display text-lg">Who voted for whom</h3>
     {#if voters.length === 0}
       <p class="font-stamp text-sm text-riso-muted">Nobody voted.</p>
     {:else}
       <ul class="flex flex-col gap-1.5">
-        {#each voters as voter}
-          <li data-voter={name(voter)} class="flex items-center gap-2 text-sm">
+        {#each voters as voter, i}
+          <li
+            data-voter={name(voter)}
+            style="animation-delay:{VOTES_AT + 100 + i * STEP}ms"
+            class="flex animate-rise items-center gap-2 text-sm">
             <span class="min-w-0 break-words">{name(voter)}</span>
             <span class="text-riso-muted" aria-hidden="true">→</span>
             <span class="min-w-0 break-words {result.votes[voter] === result.imposter_id ? 'font-bold text-riso-pink' : ''}">
@@ -55,10 +77,12 @@
     {/if}
   </Card>
 
-  <Card id="scoreboard" class="!p-4">
+  <Card id="scoreboard" style="animation-delay:{SCORES_AT}ms" class="animate-rise !p-4">
     <h3 class="mb-2 font-display text-lg">Scores</h3>
     <ol class="flex flex-col gap-1.5">
-      {#each ranking as player (player.id)}
+      {#each ranking as player, i (player.id)}
+        {@const gained = result.points[player.id] ?? 0}
+        {@const at = SCORES_AT + 100 + i * STEP}
         <li
           data-player={player.name}
           data-score={player.score}
@@ -70,10 +94,12 @@
             {player.name}
             {#if player.id === playerId}<span class="font-stamp text-xs text-riso-muted">(You)</span>{/if}
           </span>
-          {#if result.points[player.id]}
-            <span data-gained class="font-stamp text-xs text-riso-blue">+{result.points[player.id]}</span>
+          {#if gained}
+            <span data-gained style="animation-delay:{at + 300}ms" class="animate-pop font-stamp text-xs text-riso-blue">+{gained}</span>
           {/if}
-          <span class="w-6 text-right font-display text-lg tabular-nums">{player.score}</span>
+          <span class="w-6 text-right font-display text-lg tabular-nums">
+            <CountUp from={player.score - gained} to={player.score} delay={at + 300} />
+          </span>
         </li>
       {/each}
     </ol>

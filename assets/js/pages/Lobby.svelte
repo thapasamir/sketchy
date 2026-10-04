@@ -6,6 +6,9 @@
   import GameScreen from '../components/GameScreen.svelte'
   import FinalScreen from '../components/FinalScreen.svelte'
   import { createStrokeStore } from '../lib/strokes.js'
+  import { fly } from 'svelte/transition'
+  import { play } from '../lib/sound.js'
+  import { cuesFor, TIMING } from '../lib/cues.js'
   import { joinRoom } from '../lib/socket.js'
 
   const dispatch = createEventDispatcher()
@@ -70,6 +73,48 @@
     drawTime = room.settings.draw_time
   }
 
+  // --- sound and attention ---
+
+  let cueTimers = []
+
+  // Every change to the room comes through here: work out what it should sound like (see
+  // lib/cues.js), play it, and update the screen.
+  function applyUpdate(next, nextSecret, nextVote) {
+    const cues = cuesFor(room, next, playerId, nextSecret)
+    room = next
+    secret = nextSecret
+    vote = nextVote
+
+    const myTurn = next.phase === 'drawing' && next.turn?.player_id === playerId
+    if (!myTurn) restoreTitle()
+
+    for (const cue of cues) {
+      if (cue.delay) cueTimers.push(setTimeout(() => play(cue.name), cue.delay))
+      else play(cue.name)
+      if (cue.attention) attention()
+    }
+  }
+
+  // When it is your turn and you're looking at something else, say so: a buzz on a phone, and the
+  // tab's title in the tab bar.
+  let originalTitle = ''
+  function attention() {
+    navigator.vibrate?.(70)
+    if (document.hidden) {
+      originalTitle ||= document.title
+      document.title = 'Your turn! · Sketchy'
+    }
+  }
+
+  function restoreTitle() {
+    if (originalTitle) {
+      document.title = originalTitle
+      originalTitle = ''
+    }
+  }
+
+  const onVisibility = () => !document.hidden && restoreTitle()
+
   const reasons = {
     room_not_found: 'That room has closed. Start a new one or join another.',
     not_a_member: "You're not a player in that room.",
@@ -94,6 +139,7 @@
   }
 
   onMount(() => {
+    document.addEventListener('visibilitychange', onVisibility)
     channel = joinRoom(roomCode, playerId, {
       onJoined: (r, s, picture, v) => {
         room = r
@@ -102,11 +148,7 @@
         strokes.load(picture)
         status = 'live'
       },
-      onUpdate: (r, s, v) => {
-        room = r
-        secret = s
-        vote = v
-      },
+      onUpdate: applyUpdate,
       onDraw: event => strokes.apply(event),
       onKicked: () => dispatch('gone', 'The host removed you from the room.'),
       onError: reason => {
@@ -127,6 +169,9 @@
   // period and you can come straight back.
   onDestroy(() => {
     clearInterval(countdown)
+    cueTimers.forEach(clearTimeout)
+    restoreTitle()
+    document.removeEventListener('visibilitychange', onVisibility)
     channel?.push('leave', {})
     channel?.leave()
   })
@@ -177,6 +222,7 @@
   const finishTurn = () => channel.push('finish_turn', {})
 
   function castVote(targetId) {
+    play('select')
     vote = targetId // show it at once; the server's answer arrives right behind
     send('vote', { target_id: targetId })
   }
@@ -194,7 +240,10 @@
   const nextRound = () => send('next_round')
   const playAgain = () => send('play_again')
 
-  const toggleReady = () => send('set_ready', { ready: !myReady })
+  const toggleReady = () => {
+    play('select')
+    send('set_ready', { ready: !myReady })
+  }
 
   function kick(player) {
     clearTimeout(confirmTimer)
@@ -228,7 +277,7 @@
 </script>
 
 <main
-  class="mx-auto flex min-h-dvh w-full flex-col gap-8 px-4 py-6 sm:py-8 {inGame ? 'max-w-6xl' : 'max-w-4xl'}">
+  class="mx-auto flex min-h-dvh w-full flex-col gap-8 px-4 pb-24 pt-6 sm:pt-8 {inGame ? 'max-w-6xl' : 'max-w-4xl'}">
   <header class="flex items-center justify-between gap-4">
     <Wordmark class="text-3xl sm:text-4xl" />
     <Button class="px-4 py-2.5 font-stamp text-sm sm:px-6" on:click={() => dispatch('leave')}>← Leave</Button>
@@ -292,6 +341,7 @@
         <ul class="flex flex-col gap-2" id="player-list">
           {#each players as player (player.id)}
             <li
+              in:fly={{ y: 10, duration: 260 }}
               data-player={player.name}
               class="flex items-center justify-between gap-3 rounded-[2px] border-l-4 p-3 transition-opacity {player.id === room.host_id
                 ? 'border-riso-pink bg-riso-pink/5'
@@ -321,7 +371,7 @@
       </Card>
 
       {#if playing}
-        <Card id="secret-card" class="flex flex-col justify-center gap-4 text-center">
+        <Card id="secret-card" class="flex animate-flip-in flex-col justify-center gap-4 text-center">
           {#if secret}
             <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
               Round {room.round} of {room.rounds}
@@ -332,7 +382,10 @@
             </div>
 
             {#if secret.role === 'imposter'}
-              <h3 id="secret-role" class="font-display text-3xl text-riso-pink mix-blend-multiply sm:text-4xl">
+              <h3
+                id="secret-role"
+                style="animation-delay:{TIMING.stampStart}ms"
+                class="origin-center animate-stamp font-display text-3xl text-riso-pink mix-blend-multiply sm:text-4xl">
                 You're the imposter
               </h3>
               <p class="text-riso-muted">You don't know the word. Here is a clue, so blend in:</p>
@@ -342,7 +395,12 @@
               <p class="text-sm text-riso-muted">Watch what the others draw, and don't get caught.</p>
             {:else}
               <h3 id="secret-role" class="font-display text-xl text-riso-muted">Your secret word</h3>
-              <div id="secret-word" class="font-display text-4xl text-riso-blue sm:text-5xl">{secret.word}</div>
+              <div
+                id="secret-word"
+                style="animation-delay:500ms"
+                class="animate-pop font-display text-4xl text-riso-blue sm:text-5xl">
+                {secret.word}
+              </div>
               <p class="text-sm text-riso-muted">
                 You'll take turns adding to one shared drawing. Show you know the word, without making it too
                 obvious. One of you doesn't know it.

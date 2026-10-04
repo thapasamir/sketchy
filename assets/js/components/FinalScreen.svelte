@@ -1,6 +1,7 @@
 <script>
   import Button from './Button.svelte'
   import Card from './Card.svelte'
+  import Confetti from './Confetti.svelte'
 
   export let room
   export let playerId
@@ -21,12 +22,19 @@
         : `A tie: ${winners.map(w => w.name).join(' and ')}`
 </script>
 
+{#if iWon}
+  <Confetti />
+{/if}
+
 <div class="mx-auto flex w-full max-w-lg flex-col gap-4">
   <Card id="final-banner" class="text-center">
     <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
       Game over after {room.final.rounds_played} {room.final.rounds_played === 1 ? 'round' : 'rounds'}
     </div>
-    <h2 id="final-headline" class="mt-2 break-words font-display text-3xl text-riso-pink mix-blend-multiply sm:text-4xl">
+    <h2
+      id="final-headline"
+      style="animation-delay:250ms"
+      class="mt-2 animate-stamp break-words font-display text-3xl text-riso-pink mix-blend-multiply sm:text-4xl">
       {headline}
     </h2>
     {#if iWon}
@@ -41,8 +49,9 @@
         <li
           data-player={player.name}
           data-score={player.score}
+          style="animation-delay:{700 + i * 110}ms"
           data-winner={room.final.winner_ids.includes(player.id)}
-          class="flex items-center gap-2.5 rounded-[2px] px-2.5 py-2.5 {room.final.winner_ids.includes(player.id)
+          class="flex animate-rise items-center gap-2.5 rounded-[2px] px-2.5 py-2.5 {room.final.winner_ids.includes(player.id)
             ? 'bg-riso-yellow/70 ring-2 ring-riso-ink'
             : 'bg-riso-blue/5'} {player.connected ? '' : 'opacity-50'}">
           <span class="w-5 font-stamp text-sm text-riso-muted">{i + 1}</span>

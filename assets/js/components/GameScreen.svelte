@@ -6,6 +6,8 @@
   import VotePanel from './VotePanel.svelte'
   import GuessPanel from './GuessPanel.svelte'
   import ResultPanel from './ResultPanel.svelte'
+  import { play } from '../lib/sound.js'
+  import { tickFor } from '../lib/cues.js'
 
   export let room
   export let secret
@@ -88,6 +90,17 @@
     }
   }
 
+  // a tick for each of the last seconds, where the clock is pressing on you
+  let lastTick = null
+  $: {
+    const tick = tickFor({ phase, myTurn, secondsLeft })
+    if (tick && secondsLeft !== lastTick) play(tick)
+    lastTick = secondsLeft
+  }
+
+  // a new banner pops in whenever the moment changes: a new turn, the vote, the guess, the result
+  $: bannerKey = `${phase}:${turn?.player_id}`
+
   let ticker
   onMount(() => (ticker = setInterval(() => (now = performance.now()), 100)))
   onDestroy(() => clearInterval(ticker))
@@ -104,11 +117,12 @@
 
 <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_17rem] lg:grid-rows-[auto_1fr]">
   <section class="flex min-w-0 flex-col gap-3 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+    {#key bannerKey}
     <div
       id="turn-banner"
       data-phase={phase}
       data-my-turn={myTurn}
-      class="overflow-hidden rounded-[3px] border-2 border-riso-ink {myTurn ? 'bg-riso-yellow' : 'bg-white/60'}">
+      class="overflow-hidden rounded-[3px] border-2 border-riso-ink {phase === 'guess' ? 'animate-shake' : 'animate-pop'} {myTurn ? 'bg-riso-yellow' : 'bg-white/60'}">
       <div class="flex items-center gap-3 px-4 py-3">
         {#if drawing}
           <span
@@ -162,6 +176,7 @@
         </div>
       {/if}
     </div>
+    {/key}
 
     <!-- on a phone the sidebar is far below the canvas, and you need your word while you draw -->
     {#if secret && !hidden && phase !== 'result'}
@@ -194,7 +209,10 @@
                 data-brush={brush.size}
                 aria-label={brush.label}
                 aria-pressed={size === brush.size}
-                on:click={() => (size = brush.size)}
+                on:click={() => {
+                  size = brush.size
+                  play('select')
+                }}
                 class="grid h-11 w-11 cursor-pointer place-items-center rounded-[3px] border-2 transition {size === brush.size
                   ? 'border-riso-ink bg-white'
                   : 'border-transparent hover:border-riso-line'}">

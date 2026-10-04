@@ -12,7 +12,7 @@
   $: here = room.players.filter(p => p.connected).length
 </script>
 
-<Card id="vote-panel" class="!p-4">
+<Card id="vote-panel" class="animate-rise !p-4">
   <div class="mb-3 flex items-baseline justify-between gap-3">
     <h3 class="font-display text-lg">Who is the imposter?</h3>
     <span id="vote-count" class="font-stamp text-xs text-riso-muted">{voted.length} of {here} voted</span>
@@ -25,8 +25,8 @@
         data-vote={player.name}
         aria-pressed={vote === player.id}
         on:click={() => castVote(player.id)}
-        class="flex min-h-12 cursor-pointer items-center gap-2.5 rounded-[3px] border-2 px-3 py-2 text-left transition {vote === player.id
-          ? 'border-riso-ink bg-riso-yellow shadow-[3px_3px_0_rgb(0_0_0/0.15)]'
+        class="flex min-h-12 cursor-pointer items-center gap-2.5 rounded-[3px] border-2 px-3 py-2 text-left transition active:scale-[0.97] {vote === player.id
+          ? 'animate-pop border-riso-ink bg-riso-yellow shadow-[3px_3px_0_rgb(0_0_0/0.15)]'
           : 'border-riso-line bg-white/60 hover:border-riso-ink'} {player.connected ? '' : 'opacity-60'}">
         <span
           class="h-5 w-5 shrink-0 rounded-full border border-riso-ink/60"
