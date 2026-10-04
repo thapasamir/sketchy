@@ -7,6 +7,8 @@
   // who I voted for (or null), and what to do when I pick someone
   export let vote = null
   export let castVote = () => {}
+  // on a phone the players list (with its own "watching" line) sits under the vote instead
+  export let showWatchers = false
 
   // Only the people playing the round vote and are voted for. Someone who arrived mid-game is
   // watching: they can see the vote happen, but have no vote.
@@ -17,7 +19,7 @@
   $: here = contestants.filter(p => p.connected).length
 </script>
 
-<Card id="vote-panel" class="animate-rise !p-4">
+<Card id="vote-panel" class="animate-rise !p-4 lg:!p-3">
   <div class="mb-3 flex items-baseline justify-between gap-3">
     <h3 class="font-display text-lg">Who is the imposter?</h3>
     <span id="vote-count" class="font-stamp text-xs text-riso-muted">{voted.length} of {here} voted</span>
@@ -35,13 +37,15 @@
         data-vote={player.name}
         aria-pressed={vote === player.id}
         on:click={() => castVote(player.id)}
-        class="flex min-h-12 cursor-pointer items-center gap-2.5 rounded-[3px] border-2 px-3 py-2 text-left transition active:scale-[0.97] {vote === player.id
+        class="flex min-h-12 cursor-pointer items-center gap-2.5 rounded-[3px] border-2 px-3 py-2 text-left transition active:scale-[0.97] lg:min-h-11 lg:py-1.5 {vote === player.id
           ? 'animate-pop border-riso-ink bg-riso-yellow shadow-[3px_3px_0_rgb(0_0_0/0.15)]'
           : 'border-riso-line bg-white/60 hover:border-riso-ink'} {player.connected ? '' : 'opacity-60'}">
         <Marker {player} size={26} />
         <span class="min-w-0 flex-1 break-words text-sm">{player.name}</span>
         {#if vote === player.id}
           <span class="font-stamp text-xs uppercase tracking-wider">your vote</span>
+        {:else if voted.includes(player.id)}
+          <span data-voted class="font-stamp text-xs uppercase tracking-wider text-riso-blue">voted</span>
         {/if}
       </button>
     {/each}
@@ -53,6 +57,11 @@
       {:else}
         Look at the picture. Whose drawing doesn't fit the word?
       {/if}
+    </p>
+  {/if}
+  {#if showWatchers && room.players.some(p => p.spectator)}
+    <p id="watchers" class="mt-2 font-stamp text-xs text-riso-muted">
+      Watching: {room.players.filter(p => p.spectator).map(w => w.name + (w.id === playerId ? ' (you)' : '')).join(', ')}
     </p>
   {/if}
 </Card>

@@ -416,7 +416,7 @@
 <Toasts {notices} />
 
 <main
-  class="mx-auto flex min-h-dvh w-full flex-col gap-8 px-4 pb-24 pt-6 sm:pt-8 {inGame ? 'max-w-6xl' : 'max-w-4xl'}">
+  class="mx-auto flex min-h-dvh w-full flex-col gap-8 px-4 pb-24 pt-6 sm:pt-8 {inGame ? 'max-w-6xl lg:max-w-7xl lg:!gap-4 lg:!pb-6 lg:!pt-4' : 'max-w-4xl'}">
   <header class="flex items-center justify-between gap-4">
     <Wordmark class="text-3xl sm:text-4xl" />
     <Button class="px-4 py-2.5 font-stamp text-sm sm:px-6" on:click={() => dispatch('leave')}>← Leave</Button>

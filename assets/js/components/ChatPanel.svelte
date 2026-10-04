@@ -4,6 +4,10 @@
   import Card from './Card.svelte'
   import Marker from './Marker.svelte'
 
+  // on a wide screen, `fill` lets the chat take all the height its column has left
+  export let fill = false
+  let className = ''
+  export { className as class }
   export let messages = []
   export let players = []
   export let playerId
@@ -43,8 +47,8 @@
   }
 </script>
 
-<Card id="chat-panel" class="flex flex-col !p-4">
-  <h3 class="mb-2 font-display text-lg">Chat</h3>
+<Card id="chat-panel" class="flex flex-col !p-4 {fill ? 'lg:min-h-[13rem] lg:flex-1 lg:!p-3' : ''} {className}">
+  <h3 class="mb-2 font-display text-lg lg:mb-1.5">Chat</h3>
 
   <div
     id="chat-log"
@@ -53,7 +57,7 @@
     role="log"
     aria-live="polite"
     aria-label="Chat messages"
-    class="mb-3 flex h-44 flex-col gap-1.5 overflow-y-auto rounded-[2px] border border-riso-line bg-white/50 p-2.5 sm:h-52">
+    class="mb-3 flex h-44 flex-col gap-1.5 overflow-y-auto rounded-[2px] border border-riso-line bg-white/50 p-2.5 sm:h-52 {fill ? 'lg:h-auto lg:min-h-0 lg:flex-1' : ''}">
     {#each messages as message (message.id + ':' + message.at)}
       <div data-chat-from={message.name} class="min-w-0 text-sm {message.player_id === playerId ? 'text-right' : ''}">
         <span class="mr-1 inline-block align-[-2px]"><Marker player={byId[message.player_id]} size={14} /></span>

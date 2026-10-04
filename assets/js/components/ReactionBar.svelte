@@ -21,7 +21,7 @@
       data-react={reaction.id}
       aria-label={reaction.label}
       on:click={() => tap(reaction.id)}
-      class="grid h-11 w-11 cursor-pointer place-items-center rounded-[3px] border-2 border-transparent text-2xl transition hover:border-riso-line active:scale-90">
+      class="grid h-11 w-11 cursor-pointer place-items-center rounded-[3px] border-2 border-transparent text-2xl transition lg:h-9 lg:w-9 lg:text-xl hover:border-riso-line active:scale-90">
       <span aria-hidden="true">{reaction.emoji}</span>
     </button>
   {/each}

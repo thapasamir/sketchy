@@ -185,9 +185,11 @@
 
 <svelte:window on:keydown={onKey} />
 
-<div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_17rem] lg:grid-rows-[auto_1fr]">
+<!-- Wide screens: the stage (banner, picture, tools, all one width and sized to fit the window) on the
+     left, and one sidebar on the right whose chat fills whatever height is left. -->
+<div class="grid items-start gap-6 lg:grid-cols-[max(20rem,calc(100dvh-17rem))_21rem] lg:justify-center lg:gap-6">
   <section
-    class="flex min-w-0 flex-col gap-3 lg:col-start-1 lg:row-span-2 lg:row-start-1 {immersive
+    class="flex min-w-0 flex-col gap-3 {immersive
       ? 'immersive-board animate-fade fixed inset-0 z-40 !gap-2 bg-riso-paper'
       : ''}"
     style={immersive
@@ -295,7 +297,9 @@
         class="board-slot relative"
         style={immersive
           ? 'width:min(100%, calc(100dvh - 17rem)); margin-inline:auto'
-          : 'width:min(100%, max(18rem, calc(100dvh - 17rem))); margin-inline:auto'}>
+          : narrow
+            ? 'width:min(100%, max(18rem, calc(100dvh - 17rem))); margin-inline:auto'
+            : ''}>
         <DrawingBoard
           {store}
           {send}
@@ -325,25 +329,30 @@
     </div>
 
     {#if looking}
-      <div id="highlight-legend" class="shrink-0">
-        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Show one player's drawing">
-          {#each contestants as player (player.id)}
-            <button
-              type="button"
-              data-highlight={player.name}
-              aria-pressed={focus === player.id}
-              on:click={() => toggleFocus(player.id)}
-              class="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border-2 py-1 pl-1.5 pr-3 text-sm transition active:scale-[0.97] {focus === player.id
-                ? 'border-riso-ink bg-riso-yellow'
-                : 'border-riso-line bg-white/60 hover:border-riso-ink'} {focus && focus !== player.id ? 'opacity-60' : ''}">
-              <Marker {player} size={22} />
-              <span class="break-words">{player.name}</span>
-            </button>
-          {/each}
+      <div class="flex shrink-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <div id="highlight-legend" class="min-w-0 flex-1">
+          <div class="flex flex-wrap gap-1.5" role="group" aria-label="Show one player's drawing">
+            {#each contestants as player (player.id)}
+              <button
+                type="button"
+                data-highlight={player.name}
+                aria-pressed={focus === player.id}
+                on:click={() => toggleFocus(player.id)}
+                class="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border-2 py-1 pl-1.5 pr-3 text-sm transition active:scale-[0.97] {focus === player.id
+                  ? 'border-riso-ink bg-riso-yellow'
+                  : 'border-riso-line bg-white/60 hover:border-riso-ink'} {focus && focus !== player.id ? 'opacity-60' : ''}">
+                <Marker {player} size={22} />
+                <span class="break-words">{player.name}</span>
+              </button>
+            {/each}
+          </div>
+          <p class="mt-1.5 font-stamp text-xs text-riso-muted">
+            {focus ? 'Tap again, or empty paper, to see all.' : 'Tap a name or a line to isolate it.'}
+          </p>
         </div>
-        <p class="mt-1.5 font-stamp text-xs text-riso-muted">
-          {focus ? 'Tap the name again, or empty paper, to see everything.' : 'Tap a name, or a line, to see only their drawing.'}
-        </p>
+        {#if phase !== 'guess'}
+          <ReactionBar react={sendReaction} />
+        {/if}
       </div>
     {/if}
 
@@ -379,11 +388,6 @@
           <ReactionBar react={sendReaction} />
         {/if}
       </div>
-    {:else if phase === 'voting' || phase === 'result'}
-      <div class="flex shrink-0 items-center justify-between gap-2">
-        <span class="font-stamp text-xs text-riso-muted">React</span>
-        <ReactionBar react={sendReaction} />
-      </div>
     {/if}
 
     {#if error}
@@ -391,42 +395,31 @@
     {/if}
   </section>
 
-  <!-- under the canvas on a phone; at the top of the sidebar on a wide screen, where the canvas
-       would push it below the fold and you'd have to scroll to vote against the clock -->
-  {#if phase === 'voting' || phase === 'guess'}
-    <div class="lg:col-start-2 lg:row-start-1">
-      {#if phase === 'voting'}
-        <VotePanel {room} {playerId} {vote} {castVote} />
-      {:else}
-        <GuessPanel {room} {playerId} {secret} {submitGuess} />
-      {/if}
-    </div>
-  {/if}
-
-  <aside class="flex flex-col gap-4 lg:col-start-2 lg:row-start-2">
+  <!-- Under the picture on a phone. On a wide screen it is one column as tall as the stage: what
+       needs an answer from you (the vote, the guess, the result) at the top, then your card and
+       the players, and the chat taking all the height that is left, so nothing needs scrolling. -->
+  <aside id="sidebar" class="flex flex-col gap-4 lg:h-[calc(100dvh-7rem)] lg:min-h-[30rem] lg:gap-3 lg:overflow-y-auto lg:pr-1">
+    {#if phase === 'voting'}
+      <div class="order-1 lg:shrink-0"><VotePanel {room} {playerId} {vote} {castVote} showWatchers={!narrow} /></div>
+    {:else if phase === 'guess'}
+      <div class="order-1 lg:shrink-0"><GuessPanel {room} {playerId} {secret} {submitGuess} /></div>
+    {/if}
     {#if phase === 'result'}
-      <ResultPanel {room} {playerId} {isHost} {nextRound} />
+      <div class="order-1 lg:shrink-0"><ResultPanel {room} {playerId} {isHost} {nextRound} /></div>
       {#if room.chat_open}
-        <ChatPanel {messages} players={room.players} {playerId} send={sendChat} error={chatError} hint="Good round? Say so." />
+        <ChatPanel fill class="order-2" {messages} players={room.players} {playerId} send={sendChat} error={chatError} hint="Good round? Say so." />
       {/if}
     {:else}
-    {#if phase === 'voting' && room.chat_open}
-      <ChatPanel
-        {messages}
-        players={room.players}
-        {playerId}
-        send={sendChat}
-        error={chatError}
-        hint="Make your case. Who is the imposter?" />
-    {/if}
-    <Card class="!p-4">
-      <h3 class="mb-3 font-display text-lg">{drawing ? 'Drawing order' : 'Players'}</h3>
-      <ol id="turn-order" class="flex flex-col gap-1.5">
+    <!-- during the vote the wide layout lists everyone in the vote panel instead -->
+    {#if phase !== 'voting' || narrow}
+    <Card class="order-3 !p-4 lg:order-3 lg:shrink-0 lg:!p-3">
+      <h3 class="mb-3 font-display text-lg lg:mb-2">{drawing ? 'Drawing order' : 'Players'}</h3>
+      <ol id="turn-order" class="flex flex-col gap-1.5 lg:gap-1">
         {#each order as player, i (player.id)}
           <li
             data-player={player.name}
             data-drawing={drawing && player.id === turn.player_id}
-            class="flex items-center gap-2.5 rounded-[2px] px-2.5 py-2 {drawing && player.id === turn.player_id
+            class="flex items-center gap-2.5 rounded-[2px] px-2.5 py-2 lg:py-1.5 {drawing && player.id === turn.player_id
               ? 'bg-riso-yellow/70 ring-2 ring-riso-ink'
               : 'bg-riso-blue/5'} {player.connected ? '' : 'opacity-50'}">
             <Marker {player} size={22} />
@@ -449,9 +442,22 @@
         </p>
       {/if}
     </Card>
+    {/if}
+
+    {#if phase === 'voting' && room.chat_open}
+      <ChatPanel
+        fill
+        class="order-2 lg:order-4"
+        {messages}
+        players={room.players}
+        {playerId}
+        send={sendChat}
+        error={chatError}
+        hint="Make your case. Who is the imposter?" />
+    {/if}
 
     {#if secret}
-    <Card id="secret-card" class="!p-4 text-center">
+    <Card id="secret-card" class="order-4 !p-4 text-center lg:order-2 lg:shrink-0 lg:!p-3">
       <div class="mb-2 flex items-center justify-between gap-2 text-left">
         <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
           Category <span id="secret-category" class="ml-1 text-riso-ink">{secret?.category}</span>
