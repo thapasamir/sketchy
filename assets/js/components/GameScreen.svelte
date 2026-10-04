@@ -6,6 +6,7 @@
   import VotePanel from './VotePanel.svelte'
   import GuessPanel from './GuessPanel.svelte'
   import ResultPanel from './ResultPanel.svelte'
+  import ChatPanel from './ChatPanel.svelte'
   import { play } from '../lib/sound.js'
   import { tickFor } from '../lib/cues.js'
 
@@ -24,6 +25,10 @@
   // the host can skip the wait after a round's result
   export let isHost = false
   export let nextRound = () => {}
+  // chat is open for the vote and after it (the server decides: see Chat.open?/1)
+  export let messages = []
+  export let sendChat = async () => true
+  export let chatError = ''
 
   const BRUSHES = [
     { size: 1, label: 'Thin', px: 6 },
@@ -337,7 +342,19 @@
   <aside class="flex flex-col gap-4 lg:col-start-2 lg:row-start-2">
     {#if phase === 'result'}
       <ResultPanel {room} {playerId} {isHost} {nextRound} />
+      {#if room.chat_open}
+        <ChatPanel {messages} players={room.players} {playerId} send={sendChat} error={chatError} hint="Good round? Say so." />
+      {/if}
     {:else}
+    {#if phase === 'voting' && room.chat_open}
+      <ChatPanel
+        {messages}
+        players={room.players}
+        {playerId}
+        send={sendChat}
+        error={chatError}
+        hint="Make your case. Who is the imposter?" />
+    {/if}
     <Card class="!p-4">
       <h3 class="mb-3 font-display text-lg">{drawing ? 'Drawing order' : 'Players'}</h3>
       <ol id="turn-order" class="flex flex-col gap-1.5">

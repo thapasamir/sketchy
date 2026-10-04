@@ -5,6 +5,8 @@
   import Card from '../components/Card.svelte'
   import GameScreen from '../components/GameScreen.svelte'
   import FinalScreen from '../components/FinalScreen.svelte'
+  import ChatPanel from '../components/ChatPanel.svelte'
+  import { append, load as loadChat, save as saveChat, clear as clearChat } from '../lib/chatlog.js'
   import { createStrokeStore } from '../lib/strokes.js'
   import { fly } from 'svelte/transition'
   import { play } from '../lib/sound.js'
@@ -81,6 +83,48 @@
     [1, '1'],
     [2, '2'],
   ]
+
+  // --- chat ---
+  //
+  // The server only relays chat, so this browser keeps the conversation: it starts from what was
+  // saved (a refresh doesn't lose it) and is cleared when you leave the room.
+  let messages = loadChat(roomCode, playerId)
+  let chatError = ''
+
+  const chatErrors = {
+    chat_closed: "Chat is closed right now. It's back during the vote.",
+    too_fast: 'Slow down a little.',
+    empty: 'Type something first.',
+    too_long: 'That message is too long.',
+    not_a_member: "You're not in this room any more.",
+  }
+
+  function onChat(message) {
+    messages = append(messages, message)
+    saveChat(roomCode, playerId, messages)
+    if (message.player_id !== playerId) play('message')
+  }
+
+  // resolves true if the room took the message, so the box is cleared only then
+  function sendChat(text) {
+    chatError = ''
+    return new Promise(resolve => {
+      channel
+        .push('chat', { text })
+        .receive('ok', () => resolve(true))
+        .receive('error', ({ reason }) => {
+          chatError = chatErrors[reason] ?? 'Could not send that.'
+          resolve(false)
+        })
+        .receive('timeout', () => {
+          chatError = 'Could not reach the server.'
+          resolve(false)
+        })
+    })
+  }
+
+  // a note about an earlier problem shouldn't outlive the moment chat closes
+  $: if (room && !room.chat_open) chatError = ''
 
   // --- sound and attention ---
 
@@ -159,6 +203,7 @@
       },
       onUpdate: applyUpdate,
       onDraw: event => strokes.apply(event),
+      onChat,
       onKicked: () => dispatch('gone', 'The host removed you from the room.'),
       onError: reason => {
         const message = reasons[reason] || 'Could not connect to the room.'
@@ -181,6 +226,8 @@
     cueTimers.forEach(clearTimeout)
     restoreTitle()
     document.removeEventListener('visibilitychange', onVisibility)
+    // leaving for good ends this conversation (a refresh doesn't come through here)
+    clearChat(roomCode, playerId)
     channel?.push('leave', {})
     channel?.leave()
   })
@@ -306,7 +353,7 @@
     <p class="text-center font-stamp text-riso-muted">Opening room…</p>
   {:else}
     {#if finished}
-      <FinalScreen {room} {playerId} {isHost} {playAgain} error={actionError} />
+      <FinalScreen {room} {playerId} {isHost} {playAgain} error={actionError} {messages} {sendChat} {chatError} />
     {:else if inGame}
       <GameScreen
         {room}
@@ -321,6 +368,9 @@
         {submitGuess}
         {nextRound}
         {isHost}
+        {messages}
+        {sendChat}
+        {chatError}
         error={drawError || actionError} />
     {:else}
     <div class="grid gap-6 md:grid-cols-2">
@@ -524,6 +574,19 @@
             </div>
           {/if}
         </Card>
+      {/if}
+
+      <!-- while waiting for friends. (Closed while cards are read: see Chat.open?/1 on the server.) -->
+      {#if room.chat_open}
+        <div class="md:col-span-2">
+          <ChatPanel
+            {messages}
+            {players}
+            {playerId}
+            send={sendChat}
+            error={chatError}
+            hint="Say hi while you wait for everyone." />
+        </div>
       {/if}
     </div>
     {/if}

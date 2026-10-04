@@ -13,7 +13,7 @@ function getSocket() {
 
 // Join the live channel for a room. The server only accepts players who are in that room.
 // Returns the channel so the caller can leave() it.
-export function joinRoom(code, playerId, { onJoined, onUpdate, onDraw, onKicked, onError }) {
+export function joinRoom(code, playerId, { onJoined, onUpdate, onDraw, onChat, onKicked, onError }) {
   const channel = getSocket().channel(`room:${code}`, { player_id: playerId })
 
   // The server pushes the full room whenever it changes (someone joins, settings change, ...)
@@ -23,6 +23,10 @@ export function joinRoom(code, playerId, { onJoined, onUpdate, onDraw, onKicked,
 
   // Strokes from whoever is drawing: start / points / end / undo. They arrive many times a second.
   channel.on('draw', event => onDraw(event))
+
+  // Something said in the room. The server only relays it: nothing is stored, so each browser keeps
+  // its own copy (see chatlog.js).
+  channel.on('chat', message => onChat(message))
 
   channel
     .join()

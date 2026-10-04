@@ -24,6 +24,8 @@ const whoosh = (t, dur, from, to, gain = 0.2, q = 1) => ({ kind: 'noise', t, dur
 export const SOUNDS = {
   // someone joined the room
   pop: [tone(0, 0.14, 600, 0.4, { to: 900 })],
+  // someone said something in the chat: a soft two-note blip, quieter than the game sounds
+  message: [tone(0, 0.08, 740, 0.28, { type: 'triangle' }), tone(0.07, 0.1, 988, 0.24, { type: 'triangle' })],
   // a choice was made (a vote, a brush)
   select: [tone(0, 0.07, 520, 0.38, { type: 'triangle' })],
   // the last seconds of a timer

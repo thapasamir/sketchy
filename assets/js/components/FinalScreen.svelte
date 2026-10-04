@@ -2,12 +2,16 @@
   import Button from './Button.svelte'
   import Card from './Card.svelte'
   import Confetti from './Confetti.svelte'
+  import ChatPanel from './ChatPanel.svelte'
 
   export let room
   export let playerId
   export let isHost = false
   export let playAgain = () => {}
   export let error = ''
+  export let messages = []
+  export let sendChat = async () => true
+  export let chatError = ''
 
   $: ranking = [...room.players].sort((a, b) => b.score - a.score)
   $: winners = room.players.filter(p => room.final.winner_ids.includes(p.id))
@@ -65,6 +69,10 @@
       {/each}
     </ol>
   </Card>
+
+  {#if room.chat_open}
+    <ChatPanel {messages} players={room.players} {playerId} send={sendChat} error={chatError} hint="Good game? Say so." />
+  {/if}
 
   {#if error}
     <p class="text-center font-stamp text-sm text-riso-stamp" role="alert">{error}</p>

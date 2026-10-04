@@ -17,7 +17,7 @@
     },
     {
       title: 'Vote',
-      text: 'When the drawing is done, everyone votes for who they think the imposter is.',
+      text: 'When the drawing is done, everyone votes for who they think the imposter is. Chat opens for the vote, so argue your case. It is closed while people draw.',
       color: 'bg-riso-yellow text-riso-ink',
     },
     {
