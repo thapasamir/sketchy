@@ -123,6 +123,19 @@
     min-height: 100%;
   }
 
+  /* Phones with a notch or rounded corners: keep content out from under them (the page asks for
+     the whole screen with viewport-fit=cover). Fixed full-screen layers handle their own insets. */
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* No double-tap-to-zoom delay on buttons: Undo, brush sizes and votes should answer at once */
+  button,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
   /* paper with a faint halftone dot grain */
   body {
     font-family: var(--font-type);
@@ -134,6 +147,40 @@
       linear-gradient(135deg, #f4f2ec 0%, #efede6 100%);
     background-size: 9px 11px, 13px 7px, 100% 100%;
     background-attachment: fixed;
+  }
+}
+
+/* Full-screen drawing on a phone held sideways. The screen is wide and short, so stacking the bar,
+   the picture and the tools would leave the picture a postage stamp. Instead the bar and tools go
+   in a column on the left and the picture takes the full height on the right. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .immersive-board {
+    display: grid !important;
+    grid-template-columns: minmax(13rem, 19rem) 1fr;
+    grid-template-rows: auto auto 1fr auto;
+    column-gap: 0.75rem;
+    align-items: start;
+  }
+  /* the picture: the biggest square that fits the whole height beside the tools */
+  .immersive-board > .board-area {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    align-self: stretch;
+    display: grid;
+    place-items: center;
+    container-type: size;
+    min-height: 0;
+  }
+  .immersive-board .board-slot {
+    width: min(100cqw, 100cqh) !important;
+    margin: 0 !important;
+  }
+  .immersive-board > :not(.board-area) {
+    grid-column: 1;
+  }
+  /* the tools sit at the bottom of the column, under the thumb */
+  .immersive-board > #toolbar {
+    align-self: end;
   }
 }
 

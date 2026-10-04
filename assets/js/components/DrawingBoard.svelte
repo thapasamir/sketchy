@@ -143,7 +143,7 @@
 
 <div
   bind:this={wrap}
-  class="relative aspect-[4/3] w-full overflow-hidden rounded-[3px] border-2 bg-[#fffdf8] transition-shadow duration-300 {canDraw
+  class="relative aspect-square w-full overflow-hidden rounded-[3px] border-2 bg-[#fffdf8] transition-shadow duration-300 {canDraw
     ? 'border-riso-ink shadow-[0_0_0_4px_rgb(255_232_0/0.9),6px_6px_0_rgb(0_0_0/0.15)]'
     : 'border-riso-ink/70'}">
   <canvas
@@ -152,7 +152,8 @@
     aria-label="Shared drawing"
     data-can-draw={canDraw}
     class="absolute inset-0 h-full w-full {canDraw ? 'cursor-crosshair' : ''}"
-    style="touch-action: {canDraw ? 'none' : 'auto'}"
+    style="touch-action: {canDraw ? 'none' : 'auto'}; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent"
+    on:contextmenu|preventDefault
     on:pointerdown={begin}
     on:pointermove={move}
     on:pointerup={end}

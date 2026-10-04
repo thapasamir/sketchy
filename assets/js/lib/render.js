@@ -2,7 +2,7 @@
 // so the same stroke looks the same on a phone and a big monitor.
 
 // brush size 1, 2, 3 -> line width as a fraction of the canvas width
-export const BRUSH_WIDTH = { 1: 0.005, 2: 0.011, 3: 0.022 }
+export const BRUSH_WIDTH = { 1: 0.006, 2: 0.014, 3: 0.03 }
 
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
 
