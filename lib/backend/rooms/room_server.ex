@@ -439,6 +439,9 @@ defmodule Backend.Rooms.RoomServer do
       map_size(room.players) == 0 ->
         {:closed, state}
 
+      imposter_left?(room, player_id) ->
+        {:open, end_round_imposter_left(state)}
+
       drawer_left?(state, player_id) ->
         {:open, advance_turn(state)}
 
@@ -448,6 +451,22 @@ defmodule Backend.Rooms.RoomServer do
         broadcast(state.room)
         {:open, state}
     end
+  end
+
+  # The imposter walked out in the middle of a round. There is nobody left to catch, so the round
+  # ends now (the crew win it) rather than everyone drawing and voting for nothing.
+  defp imposter_left?(%{game: %{imposter_id: player_id}, phase: phase}, player_id),
+    do: phase in [:reveal, :drawing, :voting, :guess]
+
+  defp imposter_left?(_room, _player_id), do: false
+
+  defp end_round_imposter_left(state) do
+    unfinished = state.room.game.open_stroke
+    {:ok, room} = Voting.imposter_left(state.room)
+    state = state |> put_room(room) |> arm_phase_timer()
+    if unfinished, do: broadcast_draw(room, nil, %{type: "end", id: unfinished})
+    broadcast(room)
+    state
   end
 
   # --- turns ---
@@ -512,7 +531,9 @@ defmodule Backend.Rooms.RoomServer do
   defp advance_round(state) do
     state =
       if Room.continue?(state.room) do
-        {:ok, room} = Room.next_round(state.room, Dealer.deal(state.room))
+        # anyone who has been watching joins in for this round, so they are dealt in
+        room = Room.promote_spectators(state.room)
+        {:ok, room} = Room.next_round(room, Dealer.deal(room))
         state |> put_room(room) |> set_phase_timer(:end_reveal, state.reveal_ms)
       else
         {:ok, room} = Room.finish_game(state.room)

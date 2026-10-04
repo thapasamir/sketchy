@@ -41,9 +41,24 @@ defmodule Backend.Rooms.RoomTest do
     assert {:error, :room_full} = Room.join(full, "p9", "late")
   end
 
-  test "nobody joins once the game started" do
+  test "someone who arrives once the game has started joins as a spectator" do
     started = %{room_with(["Samir"]) | phase: :drawing}
-    assert {:error, :game_in_progress} = Room.join(started, "p9", "Priya")
+    assert {:ok, room} = Room.join(started, "p9", "Priya")
+    assert Room.spectator?(room, "p9")
+    refute Room.spectator?(room, "p0")
+  end
+
+  test "someone who arrives in the lobby is a player" do
+    assert {:ok, room} = Room.join(room_with(["Samir"]), "p9", "Priya")
+    refute Room.spectator?(room, "p9")
+  end
+
+  test "a spectator counts toward the room being full, and names are still unique" do
+    full = %{room_with(for(i <- 1..8, do: "player#{i}")) | phase: :drawing}
+    assert {:error, :room_full} = Room.join(full, "p99", "late")
+
+    started = %{room_with(["Samir"]) | phase: :voting}
+    assert {:error, :name_taken} = Room.join(started, "p9", "samir")
   end
 
   describe "remove_player/2" do

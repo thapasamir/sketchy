@@ -60,6 +60,12 @@ defmodule Backend.TurnsTest do
     end
   end
 
+  # make `player_id` the imposter, so a test doesn't depend on who happened to be dealt it
+  defp set_imposter(code, player_id) do
+    [{pid, _}] = Registry.lookup(Backend.RoomRegistry, code)
+    :sys.replace_state(pid, fn state -> put_in(state.room.game.imposter_id, player_id) end)
+  end
+
   defp state(code) do
     {:ok, room} = RoomServer.get_state(code)
     room
@@ -258,6 +264,9 @@ defmodule Backend.TurnsTest do
   test "a drawer who leaves for good passes the pen on, and has no later turns" do
     %{code: code} = new_game()
     first = drawer(code)
+    # (the imposter leaving ends the round instead: see round_flow_test; so make this one crew)
+    other = state(code).players |> Map.keys() |> Enum.find(&(&1 != first))
+    set_imposter(code, other)
 
     :ok = Rooms.leave(code, first)
 

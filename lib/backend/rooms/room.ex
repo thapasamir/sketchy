@@ -54,12 +54,15 @@ defmodule Backend.Rooms.Room do
     %__MODULE__{code: code, host_id: host_id, created_at: DateTime.utc_now()}
   end
 
-  def add_player(%__MODULE__{} = room, player_id, name) do
+  # `spectator: true` is someone who arrived after the game began: they watch, and they play from
+  # the next round (see `promote_spectators/1`).
+  def add_player(%__MODULE__{} = room, player_id, name, opts \\ []) do
     player = %{
       id: player_id,
       name: name,
       connected?: false,
       ready?: false,
+      spectator?: Keyword.get(opts, :spectator, false),
       joined_at: DateTime.utc_now()
     }
 
@@ -68,15 +71,49 @@ defmodule Backend.Rooms.Room do
 
   @doc """
   The rules for joining, kept pure so they are trivial to test.
-  Returns `{:ok, room}` or `{:error, reason}`.
+  Returns `{:ok, room}` or `{:error, reason}`. Joining after the game has begun is allowed: you
+  watch until the next round starts.
   """
   def join(%__MODULE__{} = room, player_id, name) do
     cond do
-      room.phase != :lobby -> {:error, :game_in_progress}
       player_count(room) >= @max_players -> {:error, :room_full}
       name_taken?(room, name) -> {:error, :name_taken}
-      true -> {:ok, add_player(room, player_id, name)}
+      room.phase == :lobby -> {:ok, add_player(room, player_id, name)}
+      true -> {:ok, add_player(room, player_id, name, spectator: true)}
     end
+  end
+
+  @doc "Is this player only watching (they joined after the game began)?"
+  def spectator?(%__MODULE__{} = room, player_id) do
+    match?(%{^player_id => %{spectator?: true}}, room.players)
+  end
+
+  @doc """
+  The players actually in the game, as `{id, player}`: everyone except spectators. Turns, votes,
+  secrets, scoring and colours are all about these.
+  """
+  def contestants(%__MODULE__{} = room) do
+    for {id, %{spectator?: false} = player} <- room.players, do: {id, player}
+  end
+
+  @doc """
+  A new round is starting: everyone who was watching joins in. They get a colour that nobody
+  else is using, and start on no points.
+  """
+  def promote_spectators(%__MODULE__{game: nil} = room), do: room
+
+  def promote_spectators(%__MODULE__{} = room) do
+    newcomers =
+      room.players
+      |> Map.values()
+      |> Enum.filter(& &1.spectator?)
+      |> Enum.sort_by(& &1.joined_at, DateTime)
+
+    free = @colors -- Map.values(room.game.colors)
+    colors = newcomers |> Enum.zip(free) |> Map.new(fn {player, color} -> {player.id, color} end)
+
+    players = Map.new(room.players, fn {id, p} -> {id, %{p | spectator?: false}} end)
+    %{room | players: players, game: %{room.game | colors: Map.merge(room.game.colors, colors)}}
   end
 
   def name_taken?(%__MODULE__{} = room, name) do
@@ -114,7 +151,10 @@ defmodule Backend.Rooms.Room do
   defp next_host(players) when map_size(players) == 0, do: nil
 
   defp next_host(players) do
+    # someone who is playing, if there is anyone; a spectator only as a last resort
     candidates = Map.values(players)
+    playing = Enum.reject(candidates, & &1.spectator?)
+    candidates = if playing == [], do: candidates, else: playing
     pool = Enum.filter(candidates, & &1.connected?)
     pool = if pool == [], do: candidates, else: pool
     Enum.min_by(pool, & &1.joined_at, DateTime).id
@@ -238,6 +278,7 @@ defmodule Backend.Rooms.Room do
   and enough players are still here to play it.
   """
   def continue?(%__MODULE__{phase: :result, game: game} = room) do
+    # (spectators join in at the start of the next round, so they count toward carrying on)
     connected = Enum.count(room.players, fn {_id, p} -> p.connected? end)
     game.round < room.settings.rounds and connected >= @min_players
   end
@@ -285,7 +326,15 @@ defmodule Backend.Rooms.Room do
   @doc "Host-only. Back to the lobby for another game: scores start again, ready flags stay."
   def play_again(%__MODULE__{phase: :final} = room, player_id) do
     with :ok <- check_host(room, player_id) do
-      {:ok, %{room | phase: :lobby, game: nil, scores: %{}}}
+      # anyone who was only watching is a player in the lobby, like everyone else (and has to say
+      # they are ready, since they have not agreed to anything yet)
+      players =
+        Map.new(room.players, fn
+          {id, %{spectator?: true} = p} -> {id, %{p | spectator?: false, ready?: false}}
+          other -> other
+        end)
+
+      {:ok, %{room | phase: :lobby, game: nil, scores: %{}, players: players}}
     end
   end
 
@@ -480,6 +529,10 @@ defmodule Backend.Rooms.Room do
       not member?(room, player_id) ->
         nil
 
+      # someone who is only watching is not dealt a card
+      spectator?(room, player_id) ->
+        nil
+
       player_id == game.imposter_id ->
         %{role: "imposter", category: game.entry.category, hint: game.hint}
 
@@ -562,6 +615,7 @@ defmodule Backend.Rooms.Room do
           name: &1.name,
           connected: &1.connected?,
           ready: &1.ready?,
+          spectator: &1.spectator?,
           color: colors[&1.id],
           score: Map.get(room.scores, &1.id, 0)
         }

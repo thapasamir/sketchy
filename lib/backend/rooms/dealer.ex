@@ -9,9 +9,11 @@ defmodule Backend.Rooms.Dealer do
 
   @doc "A deal for `room`: `%{imposter_id, imposter_history, entry, hint, used_words, turn_order}`."
   def deal(%Room{} = room) do
-    # an away player can't see their card, so they are never chosen when others are present
-    connected = for {id, p} <- room.players, p.connected?, do: id
-    candidates = if connected == [], do: Map.keys(room.players), else: connected
+    # Only people playing the round are dealt in (not spectators). An away player can't see their
+    # card, so they are never chosen as the imposter when others are present.
+    contestants = Room.contestants(room)
+    connected = for {id, p} <- contestants, p.connected?, do: id
+    candidates = if connected == [], do: Enum.map(contestants, &elem(&1, 0)), else: connected
 
     history = if room.game, do: room.game.imposter_history, else: []
     used = if room.game, do: room.game.used_words, else: []
@@ -26,7 +28,7 @@ defmodule Backend.Rooms.Dealer do
       hint: Enum.random(entry.hints),
       used_words: [entry.word | used],
       # who draws in which order this round
-      turn_order: room.players |> Map.keys() |> Enum.shuffle()
+      turn_order: contestants |> Enum.map(&elem(&1, 0)) |> Enum.shuffle()
     }
   end
 end

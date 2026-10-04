@@ -315,8 +315,26 @@ defmodule Backend.RoomsTest do
       assert {:ok, %{phase: :reveal}} = Rooms.start_game(code, host)
       assert {:error, :game_in_progress} = Rooms.start_game(code, host)
       assert {:error, :game_in_progress} = Rooms.update_settings(code, host, %{"rounds" => 4})
-      assert {:error, :game_in_progress} = Rooms.join_room(code, "Late")
       assert {:error, :not_host} = Rooms.update_settings(code, p2, %{"rounds" => 4})
+    end
+
+    test "someone who arrives after the start joins as a spectator, not a player", %{
+      code: code,
+      host: host,
+      p2: p2,
+      p3: p3
+    } do
+      {:ok, _} = Rooms.set_ready(code, p2, true)
+      {:ok, _} = Rooms.set_ready(code, p3, true)
+      {:ok, _} = Rooms.start_game(code, host)
+
+      assert {:ok, %{player_id: late}} = Rooms.join_room(code, "Late")
+      {:ok, room} = RoomServer.get_state(code)
+      assert Room.spectator?(room, late)
+      # not dealt a card, not in the turn order, not given a colour
+      assert Room.secret_for(room, late) == nil
+      refute late in room.game.turn_order
+      refute Map.has_key?(room.game.colors, late)
     end
 
     test "starting deals exactly one imposter, and only the imposter lacks the word", %{

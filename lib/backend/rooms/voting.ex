@@ -37,6 +37,13 @@ defmodule Backend.Rooms.Voting do
       not Map.has_key?(room.players, voter_id) ->
         {:error, :not_a_member}
 
+      # someone who is only watching can't vote, and can't be voted for: they weren't in the round
+      room.players[voter_id].spectator? ->
+        {:error, :spectating}
+
+      room.players[target_id].spectator? ->
+        {:error, :not_a_member}
+
       voter_id == target_id ->
         {:error, :cannot_vote_self}
 
@@ -49,9 +56,9 @@ defmodule Backend.Rooms.Voting do
   def my_vote(%{phase: :voting, game: %{votes: votes}}, player_id), do: votes[player_id]
   def my_vote(_room, _player_id), do: nil
 
-  @doc "Has everyone who is here voted? Away players don't hold the vote up."
+  @doc "Has everyone who is here voted? Away players and spectators don't hold the vote up."
   def all_voted?(%{phase: :voting} = room) do
-    here = for {id, %{connected?: true}} <- room.players, do: id
+    here = for {id, %{connected?: true, spectator?: false}} <- room.players, do: id
     here != [] and Enum.all?(here, &Map.has_key?(room.game.votes, &1))
   end
 
@@ -96,6 +103,16 @@ defmodule Backend.Rooms.Voting do
   def give_up(%{phase: :guess} = room), do: finish(room, :caught, nil)
   def give_up(_room), do: {:error, :not_guessing}
 
+  @doc """
+  The imposter left the room before the round was over. Nobody can be caught any more, so the
+  round ends on the spot and the crew win it. (If they are merely away, the round carries on:
+  they may be back.)
+  """
+  def imposter_left(%{phase: phase} = room) when phase in [:reveal, :drawing, :voting, :guess],
+    do: finish(room, :imposter_left, nil)
+
+  def imposter_left(_room), do: {:error, :not_in_round}
+
   defp accused(votes) do
     case votes |> Map.values() |> Enum.frequencies() |> Enum.sort_by(fn {_id, n} -> -n end) do
       [{_, n}, {_, n} | _] -> nil
@@ -108,7 +125,8 @@ defmodule Backend.Rooms.Voting do
   defp finish(room, outcome, guess) do
     game = room.game
     imposter = game.imposter_id
-    crew = for id <- Map.keys(room.players), id != imposter, do: id
+    # the crew: everyone who played the round (not a spectator), other than the imposter
+    crew = for {id, _player} <- Backend.Rooms.Room.contestants(room), id != imposter, do: id
 
     points =
       case outcome do

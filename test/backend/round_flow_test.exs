@@ -217,11 +217,11 @@ defmodule Backend.RoundFlowTest do
       assert %{outcome: :caught, guess: nil} = state(code).game.result
     end
 
-    test "when the imposter leaves while everyone is voting, the crew wins" do
+    test "when the imposter leaves while everyone is voting, the round ends at once and the crew win" do
       %{code: code, imposter: imposter, crew: [a, b]} = voting_room()
-      :ok = Rooms.leave(code, imposter)
       :ok = Rooms.vote(code, a, b)
-      :ok = Rooms.vote(code, b, a)
+
+      :ok = Rooms.leave(code, imposter)
 
       room = state(code)
       assert room.phase == :result
