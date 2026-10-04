@@ -6,6 +6,7 @@
   import GameScreen from '../components/GameScreen.svelte'
   import FinalScreen from '../components/FinalScreen.svelte'
   import ChatPanel from '../components/ChatPanel.svelte'
+  import QrCode from '../components/QrCode.svelte'
   import { append, load as loadChat, save as saveChat, clear as clearChat } from '../lib/chatlog.js'
   import { createStrokeStore } from '../lib/strokes.js'
   import { fly } from 'svelte/transition'
@@ -330,6 +331,24 @@
     setTimeout(() => copied === key && (copied = ''), 1500)
   }
 
+  // --- inviting friends ---
+
+  // the link a friend opens to join this room
+  $: inviteUrl = `${location.origin}/room/${code}`
+  let showQr = false
+
+  // The phone's own share sheet (WhatsApp, Messages, AirDrop, ...). Where there isn't one (most
+  // desktop browsers), sharing just copies the link. Closing the sheet is not an error.
+  async function share() {
+    const data = { title: 'Join my Sketchy game', text: `Join my Sketchy game! Room code ${code}`, url: inviteUrl }
+    if (!navigator.share) return copy(inviteUrl, 'link')
+    try {
+      await navigator.share(data)
+    } catch (e) {
+      if (e?.name !== 'AbortError') copy(inviteUrl, 'link')
+    }
+  }
+
   const labelClass = 'mb-2 block font-stamp text-xs uppercase tracking-widest'
 </script>
 
@@ -392,10 +411,33 @@
           <Button
             variant="blue"
             class="min-w-0 flex-1 px-3 py-2.5 font-stamp text-sm"
-            on:click={() => copy(`${location.origin}/room/${code}`, 'link')}>
+            on:click={() => copy(inviteUrl, 'link')}>
             {copied === 'link' ? 'Copied!' : 'Copy invite link'}
           </Button>
         </div>
+
+        <div class="mt-3 flex gap-3">
+          <Button id="share-button" variant="yellow" class="min-w-0 flex-1 px-3 py-2.5 font-stamp text-sm" on:click={share}>
+            Share
+          </Button>
+          <Button
+            id="qr-toggle"
+            aria-expanded={showQr}
+            aria-controls="qr-panel"
+            class="min-w-0 flex-1 px-3 py-2.5 font-stamp text-sm"
+            on:click={() => (showQr = !showQr)}>
+            {showQr ? 'Hide QR code' : 'QR code'}
+          </Button>
+        </div>
+
+        {#if showQr}
+          <div id="qr-panel" class="mt-3 animate-rise border-2 border-riso-ink bg-white p-4 text-center">
+            <div class="mx-auto w-52 sm:w-60">
+              <QrCode text={inviteUrl} label="QR code to join room {code}" />
+            </div>
+            <p class="mt-2 font-stamp text-xs text-riso-muted">Point a phone camera here to join room {code}.</p>
+          </div>
+        {/if}
 
         <h3 class="mb-4 mt-8 font-display text-2xl sm:text-3xl">Players ({players.length})</h3>
         <ul class="flex flex-col gap-2" id="player-list">
