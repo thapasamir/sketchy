@@ -17,13 +17,13 @@ defmodule Backend.Rooms.DrawingTest do
     }
   end
 
-  # 3 connected players in the reveal phase; the game is `rounds` rounds long
-  defp revealing(rounds \\ 2) do
+  # 3 connected players in the reveal phase; the game is `rounds` rounds long, `laps` goes each
+  defp revealing(rounds \\ 2, laps \\ 1) do
     room =
       Enum.reduce(0..2, Room.new("ABCD", "p0"), &Room.add_player(&2, "p#{&1}", "Player#{&1}"))
 
     room = Enum.reduce(Map.keys(room.players), room, &Room.set_connected(&2, &1, true))
-    {:ok, room} = Room.update_settings(room, "p0", %{rounds: rounds})
+    {:ok, room} = Room.update_settings(room, "p0", %{rounds: rounds, laps: laps})
     {:ok, room} = Room.set_ready(room, "p1", true)
     {:ok, room} = Room.set_ready(room, "p2", true)
     {:ok, room} = Room.start_game(room, "p0", deal())
@@ -31,8 +31,8 @@ defmodule Backend.Rooms.DrawingTest do
   end
 
   # drawing, and it is p2's turn (first in the turn order)
-  defp drawing(rounds \\ 2) do
-    {:ok, room} = Room.end_reveal(revealing(rounds), @now, @turn_ms)
+  defp drawing(rounds \\ 2, laps \\ 1) do
+    {:ok, room} = Room.end_reveal(revealing(rounds, laps), @now, @turn_ms)
     room
   end
 
@@ -103,6 +103,107 @@ defmodule Backend.Rooms.DrawingTest do
       assert %{round: 1, rounds: 2} = public
       assert Room.to_public(revealing()).turn == nil
       refute inspect(public) =~ "Giraffe"
+    end
+  end
+
+  describe "laps" do
+    test "two laps: everyone draws twice, in the same order" do
+      room = drawing(2, 2)
+      assert [room.game.turn.player_id | drawers(room)] == ~w(p2 p0 p1 p2 p0 p1)
+    end
+
+    test "one lap: everyone draws once" do
+      room = drawing(2, 1)
+      assert [room.game.turn.player_id | drawers(room)] == ~w(p2 p0 p1)
+    end
+
+    test "the turn says which lap it is, and how many there are" do
+      room = drawing(2, 2)
+      assert %{lap: 1, laps: 2} = Room.to_public(room, @now).turn
+
+      room = Enum.reduce(1..3, room, fn _, room -> Room.next_turn(room, @now, @turn_ms) end)
+      assert %{lap: 2, laps: 2, player_id: "p2"} = Room.to_public(room, @now).turn
+    end
+
+    test "every turn has its own number, even when the same player draws twice running" do
+      room = drawing(2, 2)
+      # the two others are away, so p2 is the only one left to draw, lap after lap
+      room = room |> Room.set_connected("p0", false) |> Room.set_connected("p1", false)
+      next = Room.next_turn(room, @now, @turn_ms)
+
+      assert next.game.turn.player_id == room.game.turn.player_id
+      assert next.game.turn.n == room.game.turn.n + 1
+      assert Room.to_public(next, @now).turn.n == Room.to_public(room, @now).turn.n + 1
+    end
+
+    test "leaving removes a player from every lap" do
+      # p2 is drawing now; with p1 gone the rest of the two laps is p0, then p2 and p0 again
+      room = Room.remove_player(drawing(2, 2), "p1")
+      assert drawers(room) == ~w(p0 p2 p0)
+    end
+
+    test "an away player is skipped in every lap" do
+      room = drawing(2, 2) |> Room.set_connected("p0", false)
+      assert drawers(room) == ~w(p1 p2 p1)
+    end
+
+    test "the laps are fixed when the round starts (the room's setting is not read mid-round)" do
+      room = drawing(2, 2)
+      assert room.game.laps == 2
+    end
+  end
+
+  describe "the laps setting" do
+    defp players_in_room(n, laps) do
+      room = Enum.reduce(1..n, Room.new("ABCD", "p1"), &Room.add_player(&2, "p#{&1}", "N#{&1}"))
+      {:ok, room} = Room.update_settings(room, "p1", %{laps: laps})
+      room
+    end
+
+    test "auto: two laps for 3 or 4 players, one for 5 or more" do
+      assert Room.laps_for(players_in_room(3, :auto)) == 2
+      assert Room.laps_for(players_in_room(4, :auto)) == 2
+      assert Room.laps_for(players_in_room(5, :auto)) == 1
+      assert Room.laps_for(players_in_room(8, :auto)) == 1
+    end
+
+    test "that keeps a word to about 5 to 8 turns whatever the group size" do
+      turns = for n <- 3..8, do: n * Room.laps_for(players_in_room(n, :auto))
+      assert turns == [6, 8, 5, 6, 7, 8]
+    end
+
+    test "the host can fix it at 1 or 2, whatever the group size" do
+      assert Room.laps_for(players_in_room(3, 1)) == 1
+      assert Room.laps_for(players_in_room(8, 2)) == 2
+    end
+
+    test "it is the default" do
+      assert Room.new("ABCD", "p1").settings.laps == :auto
+    end
+
+    test "only auto, 1 or 2 are allowed" do
+      room = players_in_room(3, :auto)
+
+      for bad <- [0, 3, -1, "2", "auto", nil, 1.5, :three] do
+        assert {:error, :invalid_settings} = Room.update_settings(room, "p1", %{laps: bad})
+      end
+
+      for good <- [:auto, 1, 2],
+          do: assert({:ok, _} = Room.update_settings(room, "p1", %{laps: good}))
+    end
+
+    test "the public room says what auto comes to right now" do
+      assert Room.to_public(players_in_room(4, :auto)).laps_now == 2
+      assert Room.to_public(players_in_room(6, :auto)).laps_now == 1
+      assert Room.to_public(players_in_room(6, 2)).laps_now == 2
+      assert Room.to_public(players_in_room(4, :auto)).settings.laps == :auto
+    end
+
+    test "changing it asks everyone to say ready again" do
+      room = players_in_room(3, :auto)
+      {:ok, room} = Room.set_ready(room, "p2", true)
+      {:ok, room} = Room.update_settings(room, "p1", %{laps: 1})
+      refute room.players["p2"].ready?
     end
   end
 

@@ -21,6 +21,18 @@ defmodule Backend.RoundFlowTest do
     room
   end
 
+  # hand the pen on until the drawing is over, however many laps that takes
+  defp finish_all_turns(code) do
+    case state(code) do
+      %{phase: :drawing, game: %{turn: %{player_id: id}}} ->
+        :ok = Rooms.finish_turn(code, id)
+        finish_all_turns(code)
+
+      _ ->
+        :ok
+    end
+  end
+
   # a room that has just finished drawing: it is the voting phase
   defp voting_room do
     {:ok, %{code: code, player_id: host}} = Rooms.create_room("Host")
@@ -36,8 +48,7 @@ defmodule Backend.RoundFlowTest do
     {:ok, _} = Rooms.start_game(code, host)
     assert_receive {:room_updated, %{phase: :drawing}}, 2000
 
-    turns = 3
-    for _ <- 1..turns, do: :ok = Rooms.finish_turn(code, state(code).game.turn.player_id)
+    finish_all_turns(code)
 
     room = state(code)
     assert room.phase == :voting

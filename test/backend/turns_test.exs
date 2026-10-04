@@ -48,6 +48,18 @@ defmodule Backend.TurnsTest do
     end
   end
 
+  # hand the pen on until the drawing is over (3 players on auto = two laps = 6 turns)
+  defp finish_all_turns(code) do
+    case state(code) do
+      %{phase: :drawing, game: %{turn: %{player_id: id}}} ->
+        :ok = Rooms.finish_turn(code, id)
+        finish_all_turns(code)
+
+      _ ->
+        :ok
+    end
+  end
+
   defp state(code) do
     {:ok, room} = RoomServer.get_state(code)
     room
@@ -67,8 +79,9 @@ defmodule Backend.TurnsTest do
     assert room.phase == :drawing
     assert room.game.turn.player_id == hd(room.game.turn_order)
     assert room.game.turn.player_id in game.players
-    # 3 players draw once each in a round, minus the turn that has started
-    assert length(room.game.queue) == 2
+    # 3 players on auto draw twice each: 6 turns, minus the one that has started
+    assert room.game.laps == 2
+    assert length(room.game.queue) == 5
   end
 
   test "the drawer's strokes reach the other channels; strangers' are refused" do
@@ -159,9 +172,8 @@ defmodule Backend.TurnsTest do
   test "after the last turn the room moves to voting, with the vote timed instead" do
     %{code: code, pids: _} = new_game()
     room = state(code)
-    turns = 3
 
-    for _ <- 1..turns, do: :ok = Rooms.finish_turn(code, drawer(code))
+    finish_all_turns(code)
 
     assert state(code).phase == :voting
     assert state(code).game.turn == nil
@@ -177,7 +189,7 @@ defmodule Backend.TurnsTest do
     room = state(code)
     :ok = Rooms.draw(code, drawer(code), stroke("a"), self())
 
-    for _ <- 1..3, do: :ok = Rooms.finish_turn(code, drawer(code))
+    finish_all_turns(code)
 
     assert [%{id: "a"}] = Room.strokes_public(state(code))
   end
@@ -232,7 +244,7 @@ defmodule Backend.TurnsTest do
       first = drawer(code)
 
       [_, second, third] = [
-        first | state(code).game.queue |> Enum.take(2)
+        first | state(code).game.queue |> Enum.map(&elem(&1, 1)) |> Enum.take(2)
       ]
 
       Process.exit(pids[second], :kill)
@@ -252,7 +264,7 @@ defmodule Backend.TurnsTest do
 
     room = state(code)
     assert room.game.turn.player_id != first
-    refute first in room.game.queue
+    refute Enum.any?(room.game.queue, fn {_lap, id} -> id == first end)
   end
 
   test "a non-drawer who leaves is only removed from the queue" do
@@ -263,6 +275,6 @@ defmodule Backend.TurnsTest do
     :ok = Rooms.leave(code, leaver)
 
     assert drawer(code) == first
-    refute leaver in state(code).game.queue
+    refute Enum.any?(state(code).game.queue, fn {_lap, id} -> id == leaver end)
   end
 end

@@ -72,7 +72,7 @@ defmodule Backend.Rooms.RoomTest do
   describe "settings" do
     test "partial updates keep the other value" do
       assert {:ok, room} = Room.update_settings(room_with(["H"]), "p0", %{rounds: 4})
-      assert room.settings == %{rounds: 4, draw_time: 30}
+      assert room.settings == %{rounds: 4, draw_time: 30, laps: :auto}
     end
 
     test "limits: rounds 2-4, draw time 30-90 in steps of 10" do

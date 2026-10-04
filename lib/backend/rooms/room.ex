@@ -13,6 +13,12 @@ defmodule Backend.Rooms.Room do
   @round_range 2..4
   @draw_time_range 30..90//10
 
+  # How many times everyone draws per word. `:auto` picks by group size, to keep a word to about
+  # 5 to 8 turns: a small group needs two goes each to give the vote anything to work with, a
+  # big one would drag on.
+  @laps_options [:auto, 1, 2]
+  @auto_two_laps_up_to 4
+
   # One colour per seat, so everyone can tell who drew what. Eight seats, eight colours.
   @colors ~w(#ff48b0 #0078bf #ff7a1a #14a76c #8a4fd6 #e63946 #c99700 #1fb5b5)
 
@@ -27,7 +33,7 @@ defmodule Backend.Rooms.Room do
             host_id: nil,
             phase: :lobby,
             players: %{},
-            settings: %{rounds: 3, draw_time: 30},
+            settings: %{rounds: 3, draw_time: 30, laps: :auto},
             # The secret part of a round (word, imposter). NEVER put this in `to_public/1`.
             game: nil,
             # points kept across rounds: %{player_id => integer}
@@ -98,7 +104,7 @@ defmodule Backend.Rooms.Room do
     room = %{room | players: players, host_id: host_id}
 
     if room.game do
-      queue = Enum.reject(room.game.queue, &(&1 == player_id))
+      queue = Enum.reject(room.game.queue, fn {_lap, id} -> id == player_id end)
       Voting.forget(%{room | game: %{room.game | queue: queue}}, player_id)
     else
       room
@@ -172,6 +178,7 @@ defmodule Backend.Rooms.Room do
         queue: [],
         turn: nil,
         turn_n: 0,
+        laps: 1,
         next_at: nil,
         names: Map.new(room.players, fn {id, player} -> {id, player.name} end),
         # after the drawing (see `Backend.Rooms.Voting`)
@@ -191,8 +198,10 @@ defmodule Backend.Rooms.Room do
   time in ms and `turn_ms` how long a turn lasts; they are passed in so this stays pure.
   """
   def end_reveal(%__MODULE__{phase: :reveal} = room, now, turn_ms) do
-    # in a round everyone draws once, in the order dealt for it
-    room = %{room | phase: :drawing, game: %{room.game | queue: room.game.turn_order}}
+    # everyone draws once per lap, in the order dealt for the round
+    laps = laps_for(room)
+    queue = for lap <- 1..laps, id <- room.game.turn_order, do: {lap, id}
+    room = %{room | phase: :drawing, game: %{room.game | queue: queue, laps: laps}}
     {:ok, next_turn(room, now, turn_ms)}
   end
 
@@ -209,17 +218,17 @@ defmodule Backend.Rooms.Room do
       nil ->
         Voting.open(room, now, vote_ms)
 
-      player_id ->
-        turn = %{player_id: player_id, n: game.turn_n + 1, ends_at: now + turn_ms}
+      {lap, player_id} ->
+        turn = %{player_id: player_id, lap: lap, n: game.turn_n + 1, ends_at: now + turn_ms}
         %{room | game: %{game | queue: rest, turn: turn, turn_n: turn.n, open_stroke: nil}}
     end
   end
 
   defp pop_drawer([], _room), do: {nil, []}
 
-  defp pop_drawer([id | rest], room) do
+  defp pop_drawer([{_lap, id} = next | rest], room) do
     case room.players do
-      %{^id => %{connected?: true}} -> {id, rest}
+      %{^id => %{connected?: true}} -> {next, rest}
       _ -> pop_drawer(rest, room)
     end
   end
@@ -287,6 +296,15 @@ defmodule Backend.Rooms.Room do
     do: check_host(room, player_id)
 
   def check_can_skip(%__MODULE__{}, _player_id), do: {:error, :not_result}
+
+  @doc """
+  How many laps (turns each) a round has with the room as it is now. Resolves the `:auto`
+  setting from the number of players.
+  """
+  def laps_for(%__MODULE__{settings: %{laps: :auto}} = room),
+    do: if(player_count(room) <= @auto_two_laps_up_to, do: 2, else: 1)
+
+  def laps_for(%__MODULE__{settings: %{laps: laps}}), do: laps
 
   @doc "Is it `player_id`'s turn to draw right now?"
   def drawer?(%__MODULE__{phase: :drawing, game: %{turn: %{player_id: id}}}, id), do: true
@@ -509,9 +527,11 @@ defmodule Backend.Rooms.Room do
   defp merge_settings(settings, changes) do
     rounds = Map.get(changes, :rounds, settings.rounds)
     draw_time = Map.get(changes, :draw_time, settings.draw_time)
+    laps = Map.get(changes, :laps, settings.laps)
 
-    if valid_in?(rounds, @round_range) and valid_in?(draw_time, @draw_time_range) do
-      {:ok, %{settings | rounds: rounds, draw_time: draw_time}}
+    if valid_in?(rounds, @round_range) and valid_in?(draw_time, @draw_time_range) and
+         laps in @laps_options do
+      {:ok, %{settings | rounds: rounds, draw_time: draw_time, laps: laps}}
     else
       {:error, :invalid_settings}
     end
@@ -556,6 +576,8 @@ defmodule Backend.Rooms.Room do
       final: final_public(room),
       reveal_seconds: div(room.reveal_ms, 1000),
       turn: turn_public(room, now),
+      # what "auto" comes to for the players here now (so the lobby can say so)
+      laps_now: laps_for(room),
       vote: stage(room, :voting, now),
       guess: stage(room, :guess, now),
       result: stage(room, :result, now),
@@ -569,7 +591,11 @@ defmodule Backend.Rooms.Room do
   defp turn_public(%__MODULE__{game: %{turn: %{} = turn}} = room, now) do
     %{
       player_id: turn.player_id,
-      # the order everyone draws in this round (not a secret: it is on show at the table)
+      # which turn this is: it changes every turn, even if the same player draws twice running
+      n: turn.n,
+      lap: turn.lap,
+      laps: room.game.laps,
+      # the order everyone draws in each lap (not a secret: it is on show at the table)
       order: Enum.filter(room.game.turn_order, &Map.has_key?(room.players, &1)),
       ms_left: turn_ms_left(room, now)
     }

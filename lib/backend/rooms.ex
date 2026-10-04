@@ -48,10 +48,10 @@ defmodule Backend.Rooms do
   @doc "Host changes the settings. `params` come straight from the browser (string keys)."
   def update_settings(code, player_id, params) do
     changes =
-      for {param, key} <- [{"rounds", :rounds}, {"draw_time", :draw_time}],
+      for {param, key} <- [{"rounds", :rounds}, {"draw_time", :draw_time}, {"laps", :laps}],
           Map.has_key?(params, param),
           into: %{},
-          do: {key, params[param]}
+          do: {key, setting_value(key, params[param])}
 
     RoomServer.update_settings(normalize_code(code), player_id, changes)
   end
@@ -137,6 +137,11 @@ defmodule Backend.Rooms do
 
   # How long everyone looks at their card before drawing starts
   defp reveal_ms, do: Application.get_env(:backend, :reveal_ms, 8_000)
+
+  # The browser sends "auto" for the one setting that is not a number. It becomes the atom here, by
+  # an explicit match: turning arbitrary text into atoms would let a client fill the atom table.
+  defp setting_value(:laps, "auto"), do: :auto
+  defp setting_value(_key, value), do: value
 
   defp validate_name(name) when is_binary(name) do
     trimmed = String.trim(name)

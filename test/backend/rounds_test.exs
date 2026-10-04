@@ -126,7 +126,19 @@ defmodule Backend.Rooms.RoundsTest do
 
       assert room.phase == :drawing
       assert room.game.turn.player_id == "p2"
-      assert room.game.queue == ~w(p3 p0 p1)
+      # 4 players on auto: two laps, the first turn already started
+      assert room.game.laps == 2
+
+      assert room.game.queue == [
+               {1, "p3"},
+               {1, "p0"},
+               {1, "p1"},
+               {2, "p2"},
+               {2, "p3"},
+               {2, "p0"},
+               {2, "p1"}
+             ]
+
       assert room.game.turn.n == 1
     end
 

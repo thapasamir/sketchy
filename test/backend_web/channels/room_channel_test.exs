@@ -305,13 +305,8 @@ defmodule BackendWeb.RoomChannelTest do
       assert_reply push(sockets[host], "start", %{}), :ok
       assert_push "room_updated", %{room: %{phase: :drawing}}, 2000
 
-      # play out the drawing: each drawer hands the pen on until it runs out
-      {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
-
-      for _ <- 1..3 do
-        {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
-        assert_reply push(sockets[room.game.turn.player_id], "finish_turn", %{}), :ok
-      end
+      # play out the drawing: each drawer hands the pen on until it runs out (however many laps)
+      finish_all_turns(sockets, code)
 
       {:ok, room} = Backend.Rooms.RoomServer.get_state(code)
       assert room.phase == :voting
@@ -328,6 +323,17 @@ defmodule BackendWeb.RoomChannelTest do
         crew_b: crew_b,
         word: room.game.entry.word
       }
+    end
+
+    defp finish_all_turns(sockets, code) do
+      case Backend.Rooms.RoomServer.get_state(code) do
+        {:ok, %{phase: :drawing, game: %{turn: %{player_id: id}}}} ->
+          assert_reply push(sockets[id], "finish_turn", %{}), :ok
+          finish_all_turns(sockets, code)
+
+        _ ->
+          :ok
+      end
     end
 
     defp flush_votes_mailbox do
