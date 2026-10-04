@@ -21,7 +21,8 @@ export function cuesFor(prev, next, me, secret) {
   if (prev.phase === next.phase) {
     if (next.phase === 'lobby' && next.players.length > prev.players.length) return [{ name: 'pop' }]
 
-    if (next.phase === 'drawing' && next.turn && next.turn.player_id === me && next.turn.player_id !== prev.turn?.player_id) {
+    // `n` numbers the turns, so you are told every time it is yours, even twice running
+    if (next.phase === 'drawing' && next.turn && next.turn.player_id === me && next.turn.n !== prev.turn?.n) {
       return [{ name: 'turn', attention: true }]
     }
     return []

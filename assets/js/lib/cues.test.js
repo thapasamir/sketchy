@@ -8,7 +8,7 @@ const room = (phase, extra = {}) => ({ phase, players: players(3), turn: null, r
 const names = cues => cues.map(c => c.name)
 
 test('the first snapshot is not an event: joining or refreshing is silent', () => {
-  assert.deepEqual(cuesFor(null, room('drawing', { turn: { player_id: 'p0' } }), 'p0'), [])
+  assert.deepEqual(cuesFor(null, room('drawing', { turn: { player_id: 'p0', n: 1 } }), 'p0'), [])
   assert.deepEqual(cuesFor(room('lobby'), null, 'p0'), [])
 })
 
@@ -31,8 +31,8 @@ test('a later round flips too', () => {
 })
 
 test('your turn chimes, and asks for attention; someone else\'s turn is silent', () => {
-  const first = room('drawing', { turn: { player_id: 'p0' } })
-  const second = room('drawing', { turn: { player_id: 'p1' } })
+  const first = room('drawing', { turn: { player_id: 'p0', n: 1 } })
+  const second = room('drawing', { turn: { player_id: 'p1', n: 2 } })
 
   assert.deepEqual(cuesFor(room('reveal'), first, 'p0'), [{ name: 'turn', attention: true }])
   assert.deepEqual(cuesFor(room('reveal'), first, 'p1'), [])
@@ -40,8 +40,14 @@ test('your turn chimes, and asks for attention; someone else\'s turn is silent',
   assert.deepEqual(cuesFor(first, second, 'p2'), [])
 })
 
+test('every one of your turns chimes, even if it is yours twice running (others skipped)', () => {
+  const a = room('drawing', { turn: { player_id: 'p0', n: 1 } })
+  const b = room('drawing', { turn: { player_id: 'p0', n: 2 } })
+  assert.deepEqual(cuesFor(a, b, 'p0'), [{ name: 'turn', attention: true }])
+})
+
 test('the turn chime plays once per turn, not on every update during it', () => {
-  const mine = room('drawing', { turn: { player_id: 'p0' } })
+  const mine = room('drawing', { turn: { player_id: 'p0', n: 1 } })
   assert.deepEqual(cuesFor(mine, { ...mine, players: players(3) }, 'p0'), [])
 })
 

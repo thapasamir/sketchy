@@ -68,10 +68,19 @@
   // The sliders show whatever the server says; only the host can move them.
   let rounds = 3
   let drawTime = 60
+  // how many times everyone draws per word: 'auto', 1 or 2
+  let laps = 'auto'
   $: if (room) {
     rounds = room.settings.rounds
     drawTime = room.settings.draw_time
+    laps = room.settings.laps
   }
+  $: turnsPerWord = players.length * (room?.laps_now ?? 1)
+  const LAP_CHOICES = [
+    ['auto', 'Auto'],
+    [1, '1'],
+    [2, '2'],
+  ]
 
   // --- sound and attention ---
 
@@ -257,6 +266,7 @@
   }
 
   const saveSettings = () => send('update_settings', { rounds: Number(rounds), draw_time: Number(drawTime) })
+  const setLaps = value => send('update_settings', { laps: value })
 
   async function copy(text, key) {
     try {
@@ -448,6 +458,32 @@
               disabled={!isHost}
               bind:value={drawTime}
               on:change={saveSettings} />
+          </div>
+
+          <div>
+            <div id="laps-label" class={labelClass}>Laps per word</div>
+            <div class="grid grid-cols-3 gap-2" role="group" aria-labelledby="laps-label">
+              {#each LAP_CHOICES as [value, label]}
+                <button
+                  type="button"
+                  id="laps-{value}"
+                  aria-pressed={laps === value}
+                  disabled={!isHost}
+                  on:click={() => setLaps(value)}
+                  class="min-h-11 cursor-pointer rounded-[3px] border-2 px-3 py-2 font-stamp text-sm transition disabled:cursor-default {laps === value
+                    ? 'border-riso-ink bg-riso-yellow'
+                    : 'border-riso-line bg-white/60 enabled:hover:border-riso-ink'} {!isHost && laps !== value ? 'opacity-60' : ''}">
+                  {label}
+                </button>
+              {/each}
+            </div>
+            <p id="laps-hint" class="mt-2 font-stamp text-xs text-riso-muted">
+              {#if laps === 'auto'}
+                Auto: {room.laps_now} {room.laps_now === 1 ? 'lap' : 'laps'} with {players.length} {players.length === 1 ? 'player' : 'players'}, so {turnsPerWord} {turnsPerWord === 1 ? 'turn' : 'turns'} per word.
+              {:else}
+                Everyone draws {laps === 1 ? 'once' : 'twice'} per word, so {turnsPerWord} {turnsPerWord === 1 ? 'turn' : 'turns'}.
+              {/if}
+            </p>
           </div>
 
           {#if actionError}

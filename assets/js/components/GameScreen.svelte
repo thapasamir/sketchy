@@ -63,7 +63,7 @@
   let turnKey = ''
   $: if (stage) {
     deadline = performance.now() + stage.ms_left
-    const key = `${phase}:${turn?.player_id}:${turn?.lap}`
+    const key = `${phase}:${turn?.n}`
     if (key !== turnKey) {
       turnKey = key
       total = Math.max(stage.ms_left, 1)
@@ -99,7 +99,7 @@
   }
 
   // a new banner pops in whenever the moment changes: a new turn, the vote, the guess, the result
-  $: bannerKey = `${phase}:${turn?.player_id}`
+  $: bannerKey = `${phase}:${turn?.n}`
 
   let ticker
   onMount(() => (ticker = setInterval(() => (now = performance.now()), 100)))
@@ -131,7 +131,7 @@
             aria-hidden="true"></span>
           <div class="min-w-0 flex-1">
             <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
-              Round {room.round} of {room.rounds}
+              Round {room.round} of {room.rounds}{#if turn.laps > 1}&nbsp;· Lap {turn.lap} of {turn.laps}{/if}
             </div>
             <div id="turn-text" class="truncate font-display text-xl sm:text-2xl">
               {myTurn ? 'Your turn. Draw!' : `${drawer?.name ?? 'Someone'} is drawing`}

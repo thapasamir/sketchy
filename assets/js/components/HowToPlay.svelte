@@ -12,7 +12,7 @@
     },
     {
       title: 'Draw it together',
-      text: 'Take turns adding to one shared drawing. Show that you know the word, but not so clearly that the imposter can copy you.',
+      text: 'Take turns adding to one shared drawing, once or twice around the table. Show that you know the word, but not so clearly that the imposter can copy you.',
       color: 'bg-riso-blue text-white',
     },
     {
