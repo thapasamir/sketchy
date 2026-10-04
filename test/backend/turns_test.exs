@@ -186,7 +186,6 @@ defmodule Backend.TurnsTest do
 
   test "the picture survives into voting" do
     %{code: code} = new_game()
-    room = state(code)
     :ok = Rooms.draw(code, drawer(code), stroke("a"), self())
 
     finish_all_turns(code)

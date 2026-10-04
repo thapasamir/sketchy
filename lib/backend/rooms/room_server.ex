@@ -19,7 +19,7 @@ defmodule Backend.Rooms.RoomServer do
 
   require Logger
 
-  alias Backend.Rooms.{Dealer, Room, Voting}
+  alias Backend.Rooms.{Chat, Dealer, Room, Voting}
 
   # --- Client API: runs in the CALLER's process ---
 
@@ -52,6 +52,12 @@ defmodule Backend.Rooms.RoomServer do
 
   @doc "The caught imposter's one guess at the word."
   def guess(code, player_id, text), do: call(code, {:guess, player_id, text})
+
+  @doc """
+  `player_id` says something to the room. It is checked, passed on to everyone, and forgotten:
+  the room keeps no chat. Returns `:ok` or `{:error, reason}`.
+  """
+  def chat(code, player_id, text), do: call(code, {:chat, player_id, text})
 
   @doc "Host skips the wait after a result."
   def next_round(code, player_id), do: call(code, {:next_round, player_id})
@@ -96,6 +102,7 @@ defmodule Backend.Rooms.RoomServer do
   #   expiry   - %{player_id => {token, timer}}, a pending "remove if still away" timer
   #   reveal_ms - how long the reveal lasts
   #   vote_ms / guess_ms - how long the vote, and the caught imposter's guess, last
+  #   chat_at - %{player_id => when they last spoke}: the only thing kept about chat, for the rate limit
   #   result_ms - how long a round's result stays up before the next round (or the final)
   #   turn_ms - fixed turn length (tests only); normally the room's draw_time setting is used
   #   drawer_away_ms - how long a turn waits for a drawer who dropped before moving on
@@ -115,7 +122,9 @@ defmodule Backend.Rooms.RoomServer do
       reveal_ms: Keyword.fetch!(opts, :reveal_ms),
       turn_ms: Keyword.get(opts, :turn_ms),
       drawer_away_ms: Keyword.get(opts, :drawer_away_ms, 8_000),
-      vote_ms: Keyword.get(opts, :vote_ms, 30_000),
+      vote_ms: Keyword.get(opts, :vote_ms, 45_000),
+      chat_interval_ms: Keyword.get(opts, :chat_interval_ms, 600),
+      chat_at: %{},
       guess_ms: Keyword.get(opts, :guess_ms, 20_000),
       result_ms: Keyword.get(opts, :result_ms, 12_000),
       phase_timer: nil,
@@ -257,6 +266,29 @@ defmodule Backend.Rooms.RoomServer do
 
       {:error, _reason} = error ->
         {:reply, error, state}
+    end
+  end
+
+  # Chat is relayed, never stored. The name comes from the room, not from the message, so nobody
+  # can speak as someone else.
+  def handle_call({:chat, player_id, text}, _from, state) do
+    now = now_ms()
+
+    with :ok <- check_chatter(state.room, player_id),
+         :ok <- check_chat_rate(state, player_id, now),
+         {:ok, clean} <- Chat.clean(text) do
+      message = %{
+        id: System.unique_integer([:positive, :monotonic]),
+        player_id: player_id,
+        name: state.room.players[player_id].name,
+        text: hide_secret(state.room, clean),
+        at: now
+      }
+
+      Phoenix.PubSub.broadcast(Backend.PubSub, "rooms:" <> state.room.code, {:chat, message})
+      {:reply, :ok, %{state | chat_at: Map.put(state.chat_at, player_id, now)}}
+    else
+      {:error, _reason} = error -> {:reply, error, state}
     end
   end
 
@@ -421,6 +453,25 @@ defmodule Backend.Rooms.RoomServer do
   # --- turns ---
 
   defp now_ms, do: System.system_time(:millisecond)
+
+  defp check_chatter(room, player_id) do
+    cond do
+      not Room.member?(room, player_id) -> {:error, :not_a_member}
+      not Chat.open?(room.phase) -> {:error, :chat_closed}
+      true -> :ok
+    end
+  end
+
+  defp check_chat_rate(state, player_id, now) do
+    last = Map.get(state.chat_at, player_id, 0)
+    if now - last >= state.chat_interval_ms, do: :ok, else: {:error, :too_fast}
+  end
+
+  # While the word is still secret (the vote), whatever is said has the word hidden
+  defp hide_secret(%{phase: :voting, game: %{entry: %{word: word}}}, text),
+    do: Chat.mask(text, word)
+
+  defp hide_secret(_room, text), do: text
 
   defp turn_ms(state), do: state.turn_ms || state.room.settings.draw_time * 1000
 

@@ -93,6 +93,6 @@ end
 # How long the vote (default 30s) and a caught imposter's guess (default 20s) last:
 #   VOTE_MS=8000 GUESS_MS=8000 mix phx.server
 config :backend,
-  vote_ms: String.to_integer(System.get_env("VOTE_MS", "30000")),
+  vote_ms: String.to_integer(System.get_env("VOTE_MS", "45000")),
   guess_ms: String.to_integer(System.get_env("GUESS_MS", "20000")),
   result_ms: String.to_integer(System.get_env("RESULT_MS", "12000"))

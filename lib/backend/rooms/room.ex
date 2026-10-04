@@ -211,7 +211,7 @@ defmodule Backend.Rooms.Room do
   Hand the pen to the next player in the queue. Anyone who has left, or is away right now, is
   skipped. When nobody is left the drawing is finished and the room moves on to voting.
   """
-  def next_turn(%__MODULE__{game: game} = room, now, turn_ms, vote_ms \\ 30_000) do
+  def next_turn(%__MODULE__{game: game} = room, now, turn_ms, vote_ms \\ 45_000) do
     {next, rest} = pop_drawer(game.queue, room)
 
     case next do
@@ -576,6 +576,8 @@ defmodule Backend.Rooms.Room do
       final: final_public(room),
       reveal_seconds: div(room.reveal_ms, 1000),
       turn: turn_public(room, now),
+      # whether people can talk right now (see `Backend.Rooms.Chat`)
+      chat_open: Backend.Rooms.Chat.open?(room.phase),
       # what "auto" comes to for the players here now (so the lobby can say so)
       laps_now: laps_for(room),
       vote: stage(room, :voting, now),

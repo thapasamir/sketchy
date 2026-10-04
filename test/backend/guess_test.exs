@@ -68,6 +68,22 @@ defmodule Backend.Rooms.GuessTest do
     end
   end
 
+  test "spaces and hyphens never matter: it's the letters that count" do
+    assert Guess.matches?("whack a mole", "Whack-a-Mole")
+    assert Guess.matches?("whackamole", "Whack-a-Mole")
+    assert Guess.matches?("Whack-A-Mole", "Whack-a-Mole")
+    assert Guess.matches?("t shirt", "T-Shirt")
+    assert Guess.matches?("tshirt", "T-Shirt")
+    assert Guess.matches?("ice cream", "Ice-Cream")
+    assert Guess.matches?("rock n roll", "Rock 'n' Roll")
+    assert Guess.matches?("fireextinguisher", "Fire Extinguisher")
+  end
+
+  test "...but a different answer is still wrong" do
+    refute Guess.matches?("whack a rat", "Whack-a-Mole")
+    refute Guess.matches?("t skirt dress", "T-Shirt")
+  end
+
   test "valid?/1 accepts a word or two and rejects blanks and essays" do
     assert Guess.valid?("giraffe")
     assert Guess.valid?("fire extinguisher")

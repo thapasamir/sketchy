@@ -10,14 +10,26 @@ defmodule Backend.Rooms.Guess do
   @max_length 60
 
   @doc "Is `guess` close enough to `word`?"
-  def matches?(guess, word) when is_binary(guess) and is_binary(word) do
-    guess = normalize(guess)
-    word = normalize(word)
+  def matches?(guess, word), do: closeness(guess, word) != :no
 
-    guess != "" and levenshtein(guess, word) <= allowed_typos(word)
+  @doc """
+  How close `guess` is to `word`: `{:yes, edits}` (0 is exact) if it counts as the word, else
+  `:no`. Lets a caller choose the best of several candidates.
+  """
+  def closeness(guess, word) when is_binary(guess) and is_binary(word) do
+    # spaces are ignored entirely: "Whack-a-Mole", "whack a mole" and "whackamole" are one answer
+    guess = guess |> normalize() |> squeeze()
+    word = word |> normalize() |> squeeze()
+
+    if guess == "" do
+      :no
+    else
+      edits = levenshtein(guess, word)
+      if edits <= allowed_typos(word), do: {:yes, edits}, else: :no
+    end
   end
 
-  def matches?(_guess, _word), do: false
+  def closeness(_guess, _word), do: :no
 
   @doc "Is this something we would even look at? (a word or two, not an essay)"
   def valid?(guess),
@@ -34,6 +46,8 @@ defmodule Backend.Rooms.Guess do
     |> drop_article()
     |> Enum.join(" ")
   end
+
+  defp squeeze(text), do: String.replace(text, " ", "")
 
   defp drop_article([article, _ | _] = words) when article in ~w(a an the), do: tl(words)
   defp drop_article(words), do: words

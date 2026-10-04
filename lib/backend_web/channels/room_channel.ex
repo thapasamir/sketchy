@@ -95,6 +95,15 @@ defmodule BackendWeb.RoomChannel do
     |> to_reply(socket)
   end
 
+  def handle_in("chat", %{"text" => text}, socket) when is_binary(text) do
+    socket.assigns.room_code
+    |> Rooms.chat(socket.assigns.player_id, text)
+    |> to_reply(socket)
+  end
+
+  def handle_in("chat", _params, socket),
+    do: {:reply, {:error, %{reason: "empty"}}, socket}
+
   def handle_in("sync", _params, socket) do
     case Rooms.fetch_member_room(socket.assigns.room_code, socket.assigns.player_id) do
       {:ok, room} -> {:reply, {:ok, %{strokes: Room.strokes_public(room)}}, socket}
@@ -142,6 +151,12 @@ defmodule BackendWeb.RoomChannel do
 
   def handle_info({:draw_event, _origin, event}, socket) do
     push(socket, "draw", event)
+    {:noreply, socket}
+  end
+
+  # Someone said something. Every socket in the room is told; nothing is kept.
+  def handle_info({:chat, message}, socket) do
+    push(socket, "chat", message)
     {:noreply, socket}
   end
 

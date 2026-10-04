@@ -265,6 +265,12 @@ defmodule BackendWeb.RoomChannelTest do
       assert drawer == ctx.drawer
     end
 
+    test "chat is closed while drawing", ctx do
+      ref = push(ctx.sockets[ctx.drawer], "chat", %{"text" => "it's a giraffe"})
+      assert_reply ref, :error, %{reason: "chat_closed"}
+      refute_push "chat", _, 100
+    end
+
     test "sync gives back the picture exactly as the server has it", ctx do
       push(ctx.sockets[ctx.drawer], "draw", start_stroke("a"))
 
@@ -431,10 +437,91 @@ defmodule BackendWeb.RoomChannelTest do
       assert_reply ref, :error, %{reason: "not_finished"}
     end
 
+    test "chat is open for the vote, and the secret word is hidden in it", ctx do
+      assert_reply push(ctx.sockets[ctx.crew_a], "chat", %{"text" => "is it a #{ctx.word}?"}), :ok
+
+      # three sockets in this process, so three pushes of the one message
+      for _ <- 1..3 do
+        assert_push "chat", %{text: text}
+        refute text =~ ~r/#{Regex.escape(ctx.word)}/i
+        assert text =~ "is it a "
+      end
+    end
+
+    test "the room says chat is open while voting", ctx do
+      assert_reply push(ctx.sockets[ctx.crew_a], "vote", %{"target_id" => ctx.imposter}), :ok
+      assert_push "room_updated", %{room: %{phase: :voting, chat_open: true}}
+    end
+
     test "while voting, the word is nowhere in what the room pushes", ctx do
       assert_reply push(ctx.sockets[ctx.crew_a], "vote", %{"target_id" => ctx.imposter}), :ok
       assert_push "room_updated", %{room: room}
       refute inspect(room) =~ ctx.word
+    end
+  end
+
+  describe "chat" do
+    setup do
+      {:ok, %{code: code, player_id: host}} = Rooms.create_room("Host")
+      {:ok, %{player_id: p2}} = Rooms.join_room(code, "Two")
+
+      sockets =
+        for id <- [host, p2], into: %{} do
+          {:ok, _, socket} = join_room("room:" <> code, %{"player_id" => id})
+          {id, socket}
+        end
+
+      %{code: code, host: host, p2: p2, sockets: sockets}
+    end
+
+    test "a message is pushed to every socket in the room, sender included", ctx do
+      assert_reply push(ctx.sockets[ctx.host], "chat", %{"text" => "hello"}), :ok
+
+      # both sockets belong to this one test process, so both pushes arrive here
+      assert_push "chat", %{text: "hello", name: "Host", player_id: _, id: _, at: _}
+      assert_push "chat", %{text: "hello", name: "Host"}
+    end
+
+    test "the speaker's name is the room's, whatever the browser claims", ctx do
+      assert_reply push(ctx.sockets[ctx.p2], "chat", %{"text" => "hi", "name" => "Host"}), :ok
+      assert_push "chat", %{name: "Two"}
+    end
+
+    test "blank, too long, and malformed messages are refused with a reason", ctx do
+      ref = push(ctx.sockets[ctx.host], "chat", %{"text" => "   "})
+      assert_reply ref, :error, %{reason: "empty"}
+
+      Process.sleep(200)
+      ref = push(ctx.sockets[ctx.host], "chat", %{"text" => String.duplicate("a", 201)})
+      assert_reply ref, :error, %{reason: "too_long"}
+
+      ref = push(ctx.sockets[ctx.host], "chat", %{})
+      assert_reply ref, :error, %{reason: "empty"}
+
+      ref = push(ctx.sockets[ctx.host], "chat", %{"text" => 42})
+      assert_reply ref, :error, %{reason: "empty"}
+      refute_push "chat", _, 100
+    end
+
+    test "speaking too fast is refused", ctx do
+      assert_reply push(ctx.sockets[ctx.host], "chat", %{"text" => "one"}), :ok
+      ref = push(ctx.sockets[ctx.host], "chat", %{"text" => "two"})
+      assert_reply ref, :error, %{reason: "too_fast"}
+    end
+
+    test "the room says that chat is open, in the lobby", ctx do
+      {:ok, reply, _} = join_room("room:" <> ctx.code, %{"player_id" => ctx.host})
+      assert reply.room.chat_open
+    end
+
+    test "joining later shows nothing that was said before (the server keeps no chat)", ctx do
+      assert_reply push(ctx.sockets[ctx.host], "chat", %{"text" => "you won't see this"}), :ok
+      assert_push "chat", _
+      assert_push "chat", _
+
+      {:ok, reply, _} = join_room("room:" <> ctx.code, %{"player_id" => ctx.p2})
+      refute inspect(reply) =~ "you won't see this"
+      refute_push "chat", _, 100
     end
   end
 end

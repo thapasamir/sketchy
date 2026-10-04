@@ -41,4 +41,4 @@ config :backend, reveal_ms: 200
 config :backend, turn_ms: 1_500, drawer_away_ms: 150
 
 # the vote and the caught imposter's guess are 30s / 20s in the real game
-config :backend, vote_ms: 1_500, guess_ms: 1_000, result_ms: 800
+config :backend, vote_ms: 1_500, guess_ms: 1_000, result_ms: 800, chat_interval_ms: 150
