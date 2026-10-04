@@ -81,6 +81,27 @@
     laps = room.settings.laps
   }
   $: turnsPerWord = players.length * (room?.laps_now ?? 1)
+
+  // which words come up: 'all' or a list of category names, and how hard they may be
+  let difficulty = 'all'
+  let chosen = []
+  $: if (room) {
+    difficulty = room.settings.difficulty
+    chosen = room.settings.categories === 'all' ? room.words.categories : room.settings.categories
+  }
+  const DIFFICULTY_CHOICES = [
+    ['easy', 'Easy only'],
+    ['medium', 'Easy + medium'],
+    ['all', 'All'],
+  ]
+  const setDifficulty = value => send('update_settings', { difficulty: value })
+  function toggleCategory(name) {
+    const next = chosen.includes(name) ? chosen.filter(c => c !== name) : [...chosen, name]
+    if (next.length === 0) return // at least one category stays chosen
+    send('update_settings', { categories: next.length === room.words.categories.length ? 'all' : next })
+  }
+  const setAllCategories = () => send('update_settings', { categories: 'all' })
+
   const LAP_CHOICES = [
     ['auto', 'Auto'],
     [1, '1'],
@@ -604,6 +625,50 @@
               {/if}
             </p>
           </div>
+
+          <details id="words-settings" class="group">
+            <summary class="{labelClass} cursor-pointer">
+              Words
+              <span id="words-summary" class="normal-case text-riso-muted">
+                · {room.settings.categories === 'all' ? 'all categories' : `${chosen.length} of ${room.words.categories.length} categories`}, {room.words.pool} words
+              </span>
+            </summary>
+            <div class="mt-2 grid grid-cols-3 gap-2" role="group" aria-label="How hard the words are">
+              {#each DIFFICULTY_CHOICES as [value, label]}
+                <button
+                  type="button"
+                  id="difficulty-{value}"
+                  aria-pressed={difficulty === value}
+                  disabled={!isHost}
+                  on:click={() => setDifficulty(value)}
+                  class="min-h-11 cursor-pointer rounded-[3px] border-2 px-2 py-2 font-stamp text-xs transition disabled:cursor-default {difficulty === value
+                    ? 'border-riso-ink bg-riso-yellow'
+                    : 'border-riso-line bg-white/60 enabled:hover:border-riso-ink'} {!isHost && difficulty !== value ? 'opacity-60' : ''}">
+                  {label}
+                </button>
+              {/each}
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Categories">
+              {#each room.words.categories as name}
+                <button
+                  type="button"
+                  data-category={name}
+                  aria-pressed={chosen.includes(name)}
+                  disabled={!isHost}
+                  on:click={() => toggleCategory(name)}
+                  class="min-h-9 cursor-pointer rounded-full border-2 px-3 py-1 font-stamp text-xs transition disabled:cursor-default {chosen.includes(name)
+                    ? 'border-riso-ink bg-riso-yellow'
+                    : 'border-riso-line bg-white/60 enabled:hover:border-riso-ink'} {!isHost && !chosen.includes(name) ? 'opacity-60' : ''}">
+                  {chosen.includes(name) ? '✓ ' : ''}{name}
+                </button>
+              {/each}
+            </div>
+            {#if isHost && room.settings.categories !== 'all'}
+              <button type="button" id="categories-all" on:click={setAllCategories} class="mt-2 cursor-pointer font-stamp text-xs underline">
+                Select all
+              </button>
+            {/if}
+          </details>
 
           {#if actionError}
             <p class="font-stamp text-sm text-riso-stamp" role="alert">{actionError}</p>
