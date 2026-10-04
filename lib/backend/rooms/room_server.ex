@@ -19,7 +19,7 @@ defmodule Backend.Rooms.RoomServer do
 
   require Logger
 
-  alias Backend.Rooms.{Chat, Dealer, Room, Voting}
+  alias Backend.Rooms.{Chat, Dealer, Reactions, Room, Voting}
 
   # --- Client API: runs in the CALLER's process ---
 
@@ -58,6 +58,12 @@ defmodule Backend.Rooms.RoomServer do
   the room keeps no chat. Returns `:ok` or `{:error, reason}`.
   """
   def chat(code, player_id, text), do: call(code, {:chat, player_id, text})
+
+  @doc """
+  `player_id` reacts with one of the fixed emoji names (see `Reactions`). Shown to everyone,
+  kept by no one. Returns `:ok` or `{:error, reason}`.
+  """
+  def react(code, player_id, id), do: call(code, {:react, player_id, id})
 
   @doc "Host skips the wait after a result."
   def next_round(code, player_id), do: call(code, {:next_round, player_id})
@@ -125,6 +131,8 @@ defmodule Backend.Rooms.RoomServer do
       vote_ms: Keyword.get(opts, :vote_ms, 45_000),
       chat_interval_ms: Keyword.get(opts, :chat_interval_ms, 600),
       chat_at: %{},
+      react_interval_ms: Keyword.get(opts, :react_interval_ms, 400),
+      react_at: %{},
       guess_ms: Keyword.get(opts, :guess_ms, 20_000),
       result_ms: Keyword.get(opts, :result_ms, 12_000),
       phase_timer: nil,
@@ -287,6 +295,25 @@ defmodule Backend.Rooms.RoomServer do
 
       Phoenix.PubSub.broadcast(Backend.PubSub, "rooms:" <> state.room.code, {:chat, message})
       {:reply, :ok, %{state | chat_at: Map.put(state.chat_at, player_id, now)}}
+    else
+      {:error, _reason} = error -> {:reply, error, state}
+    end
+  end
+
+  # A reaction is relayed like chat: checked, shown to everyone, forgotten. Only a fixed set of
+  # names is accepted (see Reactions), so nothing typed by a player can get through.
+  def handle_call({:react, player_id, id}, _from, state) do
+    now = now_ms()
+
+    with true <- Room.member?(state.room, player_id) || {:error, :not_a_member},
+         true <- Reactions.open?(state.room.phase) || {:error, :reactions_closed},
+         true <- Reactions.valid?(id) || {:error, :invalid_reaction},
+         true <-
+           now - Map.get(state.react_at, player_id, 0) >= state.react_interval_ms ||
+             {:error, :too_fast} do
+      event = %{player_id: player_id, name: state.room.players[player_id].name, id: id, at: now}
+      Phoenix.PubSub.broadcast(Backend.PubSub, "rooms:" <> state.room.code, {:reaction, event})
+      {:reply, :ok, %{state | react_at: Map.put(state.react_at, player_id, now)}}
     else
       {:error, _reason} = error -> {:reply, error, state}
     end

@@ -92,6 +92,7 @@ defmodule Backend.Rooms do
 
   @doc "Say something to the room. Relayed to everyone, kept by no one. `:ok` or `{:error, reason}`."
   def chat(code, player_id, text), do: RoomServer.chat(normalize_code(code), player_id, text)
+  def react(code, player_id, id), do: RoomServer.react(normalize_code(code), player_id, id)
 
   @doc "Host skips the wait after a result and starts the next round now."
   def next_round(code, player_id), do: RoomServer.next_round(normalize_code(code), player_id)
@@ -132,6 +133,7 @@ defmodule Backend.Rooms do
        drawer_away_ms: Application.get_env(:backend, :drawer_away_ms, 8_000),
        vote_ms: Application.get_env(:backend, :vote_ms, 45_000),
        chat_interval_ms: Application.get_env(:backend, :chat_interval_ms, 600),
+       react_interval_ms: Application.get_env(:backend, :react_interval_ms, 400),
        guess_ms: Application.get_env(:backend, :guess_ms, 20_000),
        result_ms: Application.get_env(:backend, :result_ms, 12_000)}
 

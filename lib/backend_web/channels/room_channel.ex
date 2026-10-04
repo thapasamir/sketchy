@@ -104,6 +104,15 @@ defmodule BackendWeb.RoomChannel do
   def handle_in("chat", _params, socket),
     do: {:reply, {:error, %{reason: "empty"}}, socket}
 
+  def handle_in("react", %{"id" => id}, socket) do
+    socket.assigns.room_code
+    |> Rooms.react(socket.assigns.player_id, id)
+    |> to_reply(socket)
+  end
+
+  def handle_in("react", _params, socket),
+    do: {:reply, {:error, %{reason: "invalid_reaction"}}, socket}
+
   def handle_in("sync", _params, socket) do
     case Rooms.fetch_member_room(socket.assigns.room_code, socket.assigns.player_id) do
       {:ok, room} -> {:reply, {:ok, %{strokes: Room.strokes_public(room)}}, socket}
@@ -157,6 +166,12 @@ defmodule BackendWeb.RoomChannel do
   # Someone said something. Every socket in the room is told; nothing is kept.
   def handle_info({:chat, message}, socket) do
     push(socket, "chat", message)
+    {:noreply, socket}
+  end
+
+  # Someone reacted. Same as chat: every socket is told, nothing is kept.
+  def handle_info({:reaction, event}, socket) do
+    push(socket, "reaction", event)
     {:noreply, socket}
   end
 
