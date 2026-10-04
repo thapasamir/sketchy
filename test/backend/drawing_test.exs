@@ -232,6 +232,21 @@ defmodule Backend.Rooms.DrawingTest do
 
       {:ok, room} = Room.start_game(room, "p0", %{deal() | turn_order: Map.keys(room.players)})
       assert room.game.colors |> Map.values() |> Enum.uniq() |> length() == 8
+
+      # and each colour has its own shape, so colour is never the only way to tell people apart
+      shapes = Room.to_public(room).players |> Enum.map(& &1.shape)
+      assert Enum.all?(shapes, &is_binary/1)
+      assert shapes |> Enum.uniq() |> length() == 8
+    end
+
+    test "a shape belongs to its colour, and no colour means no shape" do
+      assert Room.shape_for("#ff48b0") == "circle"
+      assert Room.shape_for("#1fb5b5") == "cross"
+      assert Room.shape_for(nil) == nil
+      assert Room.shape_for("#000000") == nil
+
+      lobby = Room.new("ABCD", "p0") |> Room.add_player("p0", "A")
+      assert [%{shape: nil}] = Room.to_public(lobby).players
     end
   end
 

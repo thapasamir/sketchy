@@ -2,6 +2,7 @@
   import Button from './Button.svelte'
   import Card from './Card.svelte'
   import CountUp from './CountUp.svelte'
+  import Marker from './Marker.svelte'
   import { TIMING } from '../lib/cues.js'
 
   export let room
@@ -11,7 +12,6 @@
 
   $: result = room.result
   $: name = id => result.names[id] ?? 'Someone'
-  $: colorOf = id => room.players.find(p => p.id === id)?.color ?? '#999'
   $: voters = Object.keys(result.votes)
   // only people who played (someone watching has no score yet)
   $: ranking = room.players.filter(p => !p.spectator).sort((a, b) => b.score - a.score)
@@ -37,7 +37,7 @@
       <span
         style="animation-delay:{TIMING.nameStart}ms"
         class="inline-flex animate-stamp items-center gap-2">
-        <span class="h-5 w-5 rounded-full border border-riso-ink/60" style="background:{colorOf(result.imposter_id)}" aria-hidden="true"></span>
+        <Marker player={room.players.find(p => p.id === result.imposter_id)} size={28} />
         <span class="break-words font-display text-2xl text-riso-pink mix-blend-multiply">{name(result.imposter_id)}</span>
       </span>
     </div>
@@ -90,7 +90,7 @@
           class="flex items-center gap-2.5 rounded-[2px] px-2.5 py-2 {player.score === top && showLeaders
             ? 'bg-riso-yellow/70 ring-2 ring-riso-ink'
             : 'bg-riso-blue/5'}">
-          <span class="h-4 w-4 shrink-0 rounded-full border border-riso-ink/60" style="background:{player.color}" aria-hidden="true"></span>
+          <Marker {player} size={22} />
           <span class="min-w-0 flex-1 break-words text-sm">
             {player.name}
             {#if player.id === playerId}<span class="font-stamp text-xs text-riso-muted">(You)</span>{/if}

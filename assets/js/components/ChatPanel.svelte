@@ -2,6 +2,7 @@
   import { afterUpdate } from 'svelte'
   import Button from './Button.svelte'
   import Card from './Card.svelte'
+  import Marker from './Marker.svelte'
 
   export let messages = []
   export let players = []
@@ -17,7 +18,7 @@
   let text = ''
   let log
 
-  $: colors = Object.fromEntries(players.map(p => [p.id, p.color]))
+  $: byId = Object.fromEntries(players.map(p => [p.id, p]))
   $: left = MAX - text.length
 
   // stay at the newest message, unless the reader has scrolled up to read older ones
@@ -55,10 +56,7 @@
     class="mb-3 flex h-44 flex-col gap-1.5 overflow-y-auto rounded-[2px] border border-riso-line bg-white/50 p-2.5 sm:h-52">
     {#each messages as message (message.id + ':' + message.at)}
       <div data-chat-from={message.name} class="min-w-0 text-sm {message.player_id === playerId ? 'text-right' : ''}">
-        <span
-          class="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-riso-ink/50 align-baseline"
-          style="background:{colors[message.player_id] ?? '#b9bbb0'}"
-          aria-hidden="true"></span>
+        <span class="mr-1 inline-block align-[-2px]"><Marker player={byId[message.player_id]} size={14} /></span>
         <b class="font-bold">{message.player_id === playerId ? 'You' : message.name}</b>
         <span class="break-words">{message.text}</span>
       </div>

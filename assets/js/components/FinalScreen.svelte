@@ -3,6 +3,7 @@
   import Card from './Card.svelte'
   import Confetti from './Confetti.svelte'
   import ChatPanel from './ChatPanel.svelte'
+  import Marker from './Marker.svelte'
 
   export let room
   export let playerId
@@ -59,7 +60,7 @@
             ? 'bg-riso-yellow/70 ring-2 ring-riso-ink'
             : 'bg-riso-blue/5'} {player.connected ? '' : 'opacity-50'}">
           <span class="w-5 font-stamp text-sm text-riso-muted">{i + 1}</span>
-          <span class="h-4 w-4 shrink-0 rounded-full border border-riso-ink/60" style="background:{player.color}" aria-hidden="true"></span>
+          <Marker {player} size={24} />
           <span class="min-w-0 flex-1 break-words">
             {player.name}
             {#if player.id === playerId}<span class="font-stamp text-xs text-riso-muted">(You)</span>{/if}

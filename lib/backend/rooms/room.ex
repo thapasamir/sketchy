@@ -22,6 +22,18 @@ defmodule Backend.Rooms.Room do
   # One colour per seat, so everyone can tell who drew what. Eight seats, eight colours.
   @colors ~w(#ff48b0 #0078bf #ff7a1a #14a76c #8a4fd6 #e63946 #c99700 #1fb5b5)
 
+  # Every colour also has a shape, so nobody has to tell colours apart by eye alone (colour
+  # blindness, a dim screen, two similar reds). The browser draws these; the order matches @colors.
+  @shapes ~w(circle square triangle diamond star plus hexagon cross)
+
+  @doc "The shape that goes with a seat's colour, or nil for no colour."
+  def shape_for(color) do
+    case Enum.find_index(@colors, &(&1 == color)) do
+      nil -> nil
+      i -> Enum.at(@shapes, i)
+    end
+  end
+
   # Limits on what one browser may send. The server never trusts the client's idea of "reasonable".
   @brush_sizes [1, 2, 3]
   @max_points_per_batch 80
@@ -657,6 +669,7 @@ defmodule Backend.Rooms.Room do
           ready: &1.ready?,
           spectator: &1.spectator?,
           color: colors[&1.id],
+          shape: shape_for(colors[&1.id]),
           score: Map.get(room.scores, &1.id, 0)
         }
       )
