@@ -101,9 +101,55 @@
   // a new banner pops in whenever the moment changes: a new turn, the vote, the guess, the result
   $: bannerKey = `${phase}:${turn?.n}`
 
+  // --- full screen, for phones ---
+  //
+  // On a phone the drawing is the whole point of the game, and in the normal layout it gets a
+  // third of the screen. So on your turn it takes over the whole screen (a slim bar with the timer
+  // and your word, the picture, and the tools under your thumb), and it hands the screen back when
+  // the turn is over. Anyone can also expand the picture to see it bigger.
+  let narrow = false
+  let immersive = false
+  let immersiveAuto = false // true when it opened by itself for your turn (so it closes by itself)
+  let handledTurn = null
+
+  onMount(() => {
+    const query = window.matchMedia('(max-width: 1023px)')
+    const update = () => (narrow = query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  })
+
+  // your turn, on a phone: the picture fills the screen (once per turn, so closing it stays closed)
+  $: if (drawing && myTurn && narrow && turn.n !== handledTurn) {
+    handledTurn = turn.n
+    immersive = true
+    immersiveAuto = true
+  }
+  // it never outlives the moment: when it is no longer your turn, or the drawing is over
+  $: if (immersive && immersiveAuto && !myTurn) immersive = false
+  $: if (immersive && phase !== 'drawing') immersive = false
+  // and on a big screen (or after rotating to one) there is nothing to expand
+  $: if (!narrow) immersive = false
+  // no scrolling the page behind it
+  $: if (typeof document !== 'undefined') document.body.style.overflow = immersive ? 'hidden' : ''
+
+  function expand() {
+    immersive = true
+    immersiveAuto = false
+  }
+
+  function collapse() {
+    immersive = false
+    immersiveAuto = false
+  }
+
   let ticker
   onMount(() => (ticker = setInterval(() => (now = performance.now()), 100)))
-  onDestroy(() => clearInterval(ticker))
+  onDestroy(() => {
+    clearInterval(ticker)
+    if (typeof document !== 'undefined') document.body.style.overflow = ''
+  })
 
   function onKey(event) {
     if (myTurn && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
@@ -116,24 +162,30 @@
 <svelte:window on:keydown={onKey} />
 
 <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_17rem] lg:grid-rows-[auto_1fr]">
-  <section class="flex min-w-0 flex-col gap-3 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+  <section
+    class="flex min-w-0 flex-col gap-3 lg:col-start-1 lg:row-span-2 lg:row-start-1 {immersive
+      ? 'immersive-board animate-fade fixed inset-0 z-40 !gap-2 bg-riso-paper'
+      : ''}"
+    style={immersive
+      ? 'height:100dvh; padding:max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left))'
+      : ''}>
     {#key bannerKey}
     <div
       id="turn-banner"
       data-phase={phase}
       data-my-turn={myTurn}
       class="overflow-hidden rounded-[3px] border-2 border-riso-ink {phase === 'guess' ? 'animate-shake' : 'animate-pop'} {myTurn ? 'bg-riso-yellow' : 'bg-white/60'}">
-      <div class="flex items-center gap-3 px-4 py-3">
+      <div class="flex items-center gap-3 {immersive ? 'px-3 py-2' : 'px-4 py-3'}">
         {#if drawing}
           <span
             class="h-6 w-6 shrink-0 rounded-full border-2 border-riso-ink"
             style="background:{drawer?.color}"
             aria-hidden="true"></span>
           <div class="min-w-0 flex-1">
-            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
+            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted" class:hidden={immersive}>
               Round {room.round} of {room.rounds}{#if turn.laps > 1}&nbsp;· Lap {turn.lap} of {turn.laps}{/if}
             </div>
-            <div id="turn-text" class="truncate font-display text-xl sm:text-2xl">
+            <div id="turn-text" class="font-display {immersive ? 'text-lg leading-tight' : 'truncate text-xl sm:text-2xl'}">
               {myTurn ? 'Your turn. Draw!' : `${drawer?.name ?? 'Someone'} is drawing`}
             </div>
           </div>
@@ -162,9 +214,19 @@
         {#if stage}
           <div
             id="turn-timer"
-            class="font-display text-3xl tabular-nums {hurry ? 'animate-pulse text-riso-stamp' : ''}">
+            class="font-display tabular-nums {immersive ? 'text-2xl' : 'text-3xl'} {hurry ? 'animate-pulse text-riso-stamp' : ''}">
             {secondsLeft}
           </div>
+        {/if}
+        {#if immersive}
+          <button
+            type="button"
+            id="immersive-close"
+            aria-label="Leave full screen"
+            on:click={collapse}
+            class="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-[3px] border-2 border-riso-ink bg-riso-paper font-display text-xl">
+            ×
+          </button>
         {/if}
       </div>
       {#if stage}
@@ -180,7 +242,7 @@
 
     <!-- on a phone the sidebar is far below the canvas, and you need your word while you draw -->
     {#if secret && !hidden && phase !== 'result'}
-      <div id="secret-bar" class="flex items-center justify-between gap-3 border-2 border-riso-ink/70 bg-white/60 px-3 py-2 lg:hidden">
+      <div id="secret-bar" class="flex shrink-0 items-center justify-between gap-3 border-2 border-riso-ink/70 bg-white/60 px-3 py-2 lg:hidden">
         {#if secret.role === 'imposter'}
           <span class="min-w-0 truncate text-sm">
             <span class="font-display text-riso-pink mix-blend-multiply">Imposter</span>
@@ -197,10 +259,33 @@
       </div>
     {/if}
 
-    <DrawingBoard {store} {send} me={playerId} color={me?.color} {size} canDraw={myTurn} />
+    <!-- The picture is square and as big as the space allows: the full width, but never taller than the screen
+         (so it never needs scrolling to reach). Full screen: the biggest square that fits what is left. -->
+    <div class="board-area">
+      <div
+        class="board-slot relative"
+        style={immersive
+          ? 'width:min(100%, calc(100dvh - 17rem)); margin-inline:auto'
+          : 'width:min(100%, max(18rem, calc(100dvh - 17rem))); margin-inline:auto'}>
+        <DrawingBoard {store} {send} me={playerId} color={me?.color} {size} canDraw={myTurn} />
+
+        {#if !immersive}
+          <button
+            type="button"
+            id="expand-button"
+            aria-label="Expand the drawing to full screen"
+            on:click={expand}
+            class="absolute right-2 top-2 grid h-10 w-10 cursor-pointer place-items-center rounded-[3px] border-2 border-riso-ink bg-riso-paper/90 transition hover:bg-white lg:hidden">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
+          </button>
+        {/if}
+      </div>
+    </div>
 
     {#if phase === 'drawing'}
-      <div id="toolbar" class="flex min-h-[3.25rem] flex-wrap items-center gap-3">
+      <div id="toolbar" class="flex min-h-[3.25rem] shrink-0 flex-wrap items-center gap-3">
         {#if myTurn}
           <div class="flex items-center gap-1.5" role="group" aria-label="Brush size">
             {#each BRUSHES as brush}
