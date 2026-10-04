@@ -24,6 +24,23 @@
   --animate-rise: rise 0.45s ease-out both;
   --animate-shake: shake 0.5s ease-in-out both;
   --animate-fade: fade 0.2s ease-out both;
+  --animate-float: float-up 2.4s ease-out forwards;
+
+  /* an emoji reaction rising over the picture and fading out */
+  @keyframes float-up {
+    0% {
+      opacity: 0;
+      transform: translate(-50%, 0) scale(0.5);
+    }
+    12% {
+      opacity: 1;
+      transform: translate(-50%, -12%) scale(1.15);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(-50%, -260%) scale(1);
+    }
+  }
 
   /* a card turning over to show its face */
   @keyframes flip-in {
@@ -195,6 +212,12 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* a reaction that "finished" at once would be invisible: show it still instead (it is removed
+     from the page after a couple of seconds either way) */
+  .animate-float {
+    animation: none !important;
   }
 }
 

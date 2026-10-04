@@ -8,6 +8,8 @@
   import ResultPanel from './ResultPanel.svelte'
   import ChatPanel from './ChatPanel.svelte'
   import Marker from './Marker.svelte'
+  import ReactionBar from './ReactionBar.svelte'
+  import ReactionLayer from './ReactionLayer.svelte'
   import { play } from '../lib/sound.js'
   import { tickFor } from '../lib/cues.js'
 
@@ -30,6 +32,9 @@
   export let messages = []
   export let sendChat = async () => true
   export let chatError = ''
+  // emoji reactions floating over the picture, and how to send one
+  export let reactions = []
+  export let sendReaction = () => {}
 
   const BRUSHES = [
     { size: 1, label: 'Thin', px: 6 },
@@ -302,6 +307,7 @@
           {focus}
           players={looking ? contestants : null}
           on:pick={e => toggleFocus(e.detail)} />
+        <ReactionLayer {reactions} />
 
         {#if !immersive}
           <button
@@ -367,10 +373,16 @@
             I'm done
           </Button>
         {:else}
-          <p class="font-stamp text-sm text-riso-muted">
+          <p class="min-w-0 flex-1 font-stamp text-sm text-riso-muted">
             Watch closely. Does everyone's drawing match the word?
           </p>
+          <ReactionBar react={sendReaction} />
         {/if}
+      </div>
+    {:else if phase === 'voting' || phase === 'result'}
+      <div class="flex shrink-0 items-center justify-between gap-2">
+        <span class="font-stamp text-xs text-riso-muted">React</span>
+        <ReactionBar react={sendReaction} />
       </div>
     {/if}
 

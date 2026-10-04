@@ -9,6 +9,7 @@
   import QrCode from '../components/QrCode.svelte'
   import Toasts from '../components/Toasts.svelte'
   import { noticesFor } from '../lib/notices.js'
+  import { show as showReaction, SHOW_MS } from '../lib/reactions.js'
   import { append, load as loadChat, save as saveChat, clear as clearChat } from '../lib/chatlog.js'
   import { createStrokeStore } from '../lib/strokes.js'
   import { fly } from 'svelte/transition'
@@ -147,6 +148,24 @@
     })
   }
 
+  // --- reactions ---
+  //
+  // Like chat, only relayed. Each one floats on screen for a moment and is dropped.
+  let reactions = []
+  let reactionKey = 0
+  let reactionTimers = []
+
+  function onReaction(event) {
+    const before = reactions
+    reactions = showReaction(reactions, event, ++reactionKey)
+    if (reactions === before) return
+    const key = reactionKey
+    reactionTimers.push(setTimeout(() => (reactions = reactions.filter(r => r.key !== key)), SHOW_MS))
+  }
+
+  // refused ones (too fast, closed) are simply not shown: nothing to tell the person
+  const sendReaction = id => channel?.push('react', { id })
+
   // a note about an earlier problem shouldn't outlive the moment chat closes
   $: if (room && !room.chat_open) chatError = ''
 
@@ -244,6 +263,7 @@
       onUpdate: applyUpdate,
       onDraw: event => strokes.apply(event),
       onChat,
+      onReaction,
       onKicked: () => dispatch('gone', 'The host removed you from the room.'),
       onError: reason => {
         const message = reasons[reason] || 'Could not connect to the room.'
@@ -265,6 +285,7 @@
     clearInterval(countdown)
     cueTimers.forEach(clearTimeout)
     noticeTimers.forEach(clearTimeout)
+    reactionTimers.forEach(clearTimeout)
     restoreTitle()
     document.removeEventListener('visibilitychange', onVisibility)
     // leaving for good ends this conversation (a refresh doesn't come through here)
@@ -432,6 +453,8 @@
         {messages}
         {sendChat}
         {chatError}
+        {reactions}
+        {sendReaction}
         error={drawError || actionError} />
     {:else}
     <div class="grid gap-6 md:grid-cols-2">
