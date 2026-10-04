@@ -19,7 +19,8 @@ defmodule Backend.Rooms.Dealer do
     used = if room.game, do: room.game.used_words, else: []
 
     {imposter_id, history} = Imposter.pick(candidates, history)
-    entry = Words.pick(used)
+    # the host's choice of categories and difficulty
+    entry = Words.pick(used, Room.word_filter(room))
 
     %{
       imposter_id: imposter_id,

@@ -26,20 +26,32 @@ defmodule Backend.Words do
     :ok
   end
 
-  def categories, do: Map.keys(by_category())
+  def categories, do: by_category() |> Map.keys() |> Enum.sort()
 
   def count, do: by_category() |> Map.values() |> Enum.map(&length/1) |> Enum.sum()
+
+  # How hard the words may be. The host picks a ceiling: "easy" keeps only easy words, "medium"
+  # also lets in the medium ones, "all" includes the hard ones.
+  @levels %{all: ~w(easy medium hard), medium: ~w(easy medium), easy: ~w(easy)}
+
+  @doc "The difficulty choices a host can make."
+  def difficulties, do: Map.keys(@levels)
 
   @doc """
   Pick a random entry, skipping the words in `exclude` (so a room doesn't see a word twice).
 
+  `filter` narrows the choice: `%{categories: :all | [name], difficulty: :all | :medium | :easy}`
+  (both optional).
+
   The category is chosen first, then a word inside it. That gives every category an equal chance
   no matter how many words it has, so a small category (Holidays) isn't drowned out by big ones.
-  If every word has been excluded, the exclusion is ignored rather than failing.
+  If every word has been excluded, the exclusion is ignored rather than failing; and if the filter
+  leaves nothing at all, it is ignored too, so a round can always be dealt.
   """
-  def pick(exclude \\ []) do
+  def pick(exclude \\ [], filter \\ %{}) do
     exclude = MapSet.new(exclude)
-    data = by_category()
+    data = filtered(filter)
+    data = if data == %{}, do: by_category(), else: data
 
     fresh =
       for {category, entries} <- data,
@@ -51,6 +63,23 @@ defmodule Backend.Words do
       [] -> data |> Map.values() |> Enum.random() |> Enum.random()
       _ -> fresh |> Enum.random() |> elem(1) |> Enum.random()
     end
+  end
+
+  @doc "How many words match `filter` (so the lobby can say how big the pool is)."
+  def pool_size(filter \\ %{}) do
+    filtered(filter) |> Map.values() |> Enum.map(&length/1) |> Enum.sum()
+  end
+
+  defp filtered(filter) do
+    levels = Map.fetch!(@levels, Map.get(filter, :difficulty, :all))
+    wanted = Map.get(filter, :categories, :all)
+
+    for {category, entries} <- by_category(),
+        wanted == :all or category in wanted,
+        kept = Enum.filter(entries, &(&1.difficulty in levels)),
+        kept != [],
+        into: %{},
+        do: {category, kept}
   end
 
   defp by_category, do: :persistent_term.get(@key)

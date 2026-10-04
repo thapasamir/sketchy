@@ -33,7 +33,15 @@ defmodule Backend.Rooms.Room do
             host_id: nil,
             phase: :lobby,
             players: %{},
-            settings: %{rounds: 3, draw_time: 30, laps: :auto},
+            # `categories`: :all or a list of category names; `difficulty`: :all, :medium or :easy
+            # (see `Backend.Words`)
+            settings: %{
+              rounds: 3,
+              draw_time: 30,
+              laps: :auto,
+              categories: :all,
+              difficulty: :all
+            },
             # The secret part of a round (word, imposter). NEVER put this in `to_public/1`.
             game: nil,
             # points kept across rounds: %{player_id => integer}
@@ -581,14 +589,46 @@ defmodule Backend.Rooms.Room do
     rounds = Map.get(changes, :rounds, settings.rounds)
     draw_time = Map.get(changes, :draw_time, settings.draw_time)
     laps = Map.get(changes, :laps, settings.laps)
+    categories = Map.get(changes, :categories, settings.categories)
+    difficulty = Map.get(changes, :difficulty, settings.difficulty)
 
     if valid_in?(rounds, @round_range) and valid_in?(draw_time, @draw_time_range) and
-         laps in @laps_options do
-      {:ok, %{settings | rounds: rounds, draw_time: draw_time, laps: laps}}
+         laps in @laps_options and valid_categories?(categories) and
+         difficulty in Backend.Words.difficulties() do
+      {:ok,
+       %{
+         settings
+         | rounds: rounds,
+           draw_time: draw_time,
+           laps: laps,
+           categories: normalize_categories(categories),
+           difficulty: difficulty
+       }}
     else
       {:error, :invalid_settings}
     end
   end
+
+  # every category, or at least one category that exists, each named once
+  defp valid_categories?(:all), do: true
+
+  defp valid_categories?(names) when is_list(names) do
+    known = Backend.Words.categories()
+    names != [] and Enum.all?(names, &(&1 in known)) and length(Enum.uniq(names)) == length(names)
+  end
+
+  defp valid_categories?(_), do: false
+
+  # choosing every category one by one is the same as choosing "all"
+  defp normalize_categories(:all), do: :all
+
+  defp normalize_categories(names) do
+    if Enum.sort(names) == Backend.Words.categories(), do: :all, else: Enum.sort(names)
+  end
+
+  # what the game deals from, for the lobby to show and the dealer to use
+  def word_filter(%__MODULE__{settings: settings}),
+    do: %{categories: settings.categories, difficulty: settings.difficulty}
 
   defp valid_in?(value, range), do: is_integer(value) and value in range
 
@@ -634,6 +674,11 @@ defmodule Backend.Rooms.Room do
       chat_open: Backend.Rooms.Chat.open?(room.phase),
       # what "auto" comes to for the players here now (so the lobby can say so)
       laps_now: laps_for(room),
+      # what the host can choose from, and how many words their choices leave
+      words: %{
+        categories: Backend.Words.categories(),
+        pool: Backend.Words.pool_size(word_filter(room))
+      },
       vote: stage(room, :voting, now),
       guess: stage(room, :guess, now),
       result: stage(room, :result, now),

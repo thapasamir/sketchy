@@ -256,6 +256,9 @@ defmodule BackendWeb.RoomChannelTest do
         "points" => [[0.5, 0.5]]
       })
 
+      # `push` doesn't wait: make sure the drawer's channel has handled both before looking
+      _ = :sys.get_state(ctx.sockets[ctx.drawer].channel_pid)
+
       # a refresh: the same player joins again on a new socket
       assert {:ok, reply, _socket} = join_room("room:" <> ctx.code, %{"player_id" => ctx.guest})
 
