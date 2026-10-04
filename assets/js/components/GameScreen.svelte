@@ -7,6 +7,7 @@
   import GuessPanel from './GuessPanel.svelte'
   import ResultPanel from './ResultPanel.svelte'
   import ChatPanel from './ChatPanel.svelte'
+  import Marker from './Marker.svelte'
   import { play } from '../lib/sound.js'
   import { tickFor } from '../lib/cues.js'
 
@@ -62,6 +63,16 @@
   $: iAmWatching = !!me?.spectator
   $: watchers = room.players.filter(p => p.spectator)
   $: order = turn ? turn.order.map(id => byId[id]).filter(Boolean) : room.players.filter(p => !p.spectator)
+
+  // --- looking back over the drawing ---
+  //
+  // Once the drawing is finished (the vote, the guess, the result) anyone can pick a player, from
+  // the list under the picture or by tapping a line on it, and only their strokes stay clear.
+  let focus = null
+  $: looking = phase === 'voting' || phase === 'guess' || phase === 'result'
+  $: if (!looking) focus = null
+  $: contestants = room.players.filter(p => !p.spectator && p.color)
+  const toggleFocus = id => (focus = focus === id || id === null ? null : id)
 
   // The server sends how long is left when the turn changes; we count down from there. Counting
   // locally is smooth, and it needs no shared clock between the browser and the server.
@@ -185,10 +196,7 @@
       class="overflow-hidden rounded-[3px] border-2 border-riso-ink {phase === 'guess' ? 'animate-shake' : 'animate-pop'} {myTurn ? 'bg-riso-yellow' : 'bg-white/60'}">
       <div class="flex items-center gap-3 {immersive ? 'px-3 py-2' : 'px-4 py-3'}">
         {#if drawing}
-          <span
-            class="h-6 w-6 shrink-0 rounded-full border-2 border-riso-ink"
-            style="background:{drawer?.color}"
-            aria-hidden="true"></span>
+          <Marker player={drawer} size={30} />
           <div class="min-w-0 flex-1">
             <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted" class:hidden={immersive}>
               Round {room.round} of {room.rounds}{#if turn.laps > 1}&nbsp;· Lap {turn.lap} of {turn.laps}{/if}
@@ -283,7 +291,17 @@
         style={immersive
           ? 'width:min(100%, calc(100dvh - 17rem)); margin-inline:auto'
           : 'width:min(100%, max(18rem, calc(100dvh - 17rem))); margin-inline:auto'}>
-        <DrawingBoard {store} {send} me={playerId} color={me?.color} {size} canDraw={myTurn} />
+        <DrawingBoard
+          {store}
+          {send}
+          me={playerId}
+          color={me?.color}
+          {size}
+          canDraw={myTurn}
+          pickable={looking}
+          {focus}
+          players={looking ? contestants : null}
+          on:pick={e => toggleFocus(e.detail)} />
 
         {#if !immersive}
           <button
@@ -299,6 +317,29 @@
         {/if}
       </div>
     </div>
+
+    {#if looking}
+      <div id="highlight-legend" class="shrink-0">
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Show one player's drawing">
+          {#each contestants as player (player.id)}
+            <button
+              type="button"
+              data-highlight={player.name}
+              aria-pressed={focus === player.id}
+              on:click={() => toggleFocus(player.id)}
+              class="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border-2 py-1 pl-1.5 pr-3 text-sm transition active:scale-[0.97] {focus === player.id
+                ? 'border-riso-ink bg-riso-yellow'
+                : 'border-riso-line bg-white/60 hover:border-riso-ink'} {focus && focus !== player.id ? 'opacity-60' : ''}">
+              <Marker {player} size={22} />
+              <span class="break-words">{player.name}</span>
+            </button>
+          {/each}
+        </div>
+        <p class="mt-1.5 font-stamp text-xs text-riso-muted">
+          {focus ? 'Tap the name again, or empty paper, to see everything.' : 'Tap a name, or a line, to see only their drawing.'}
+        </p>
+      </div>
+    {/if}
 
     {#if phase === 'drawing'}
       <div id="toolbar" class="flex min-h-[3.25rem] shrink-0 flex-wrap items-center gap-3">
@@ -376,10 +417,7 @@
             class="flex items-center gap-2.5 rounded-[2px] px-2.5 py-2 {drawing && player.id === turn.player_id
               ? 'bg-riso-yellow/70 ring-2 ring-riso-ink'
               : 'bg-riso-blue/5'} {player.connected ? '' : 'opacity-50'}">
-            <span
-              class="h-4 w-4 shrink-0 rounded-full border border-riso-ink/60"
-              style="background:{player.color}"
-              aria-hidden="true"></span>
+            <Marker {player} size={22} />
             <span class="min-w-0 flex-1 break-words text-sm">
               {player.name}
               {#if player.id === playerId}<span class="font-stamp text-xs text-riso-muted">(You)</span>{/if}

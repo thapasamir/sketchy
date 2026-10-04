@@ -1,6 +1,8 @@
 <script>
-  import { onMount, onDestroy } from 'svelte'
-  import { drawStroke, clear } from '../lib/render.js'
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte'
+  import { drawStroke, drawMarker, strokeAt, clear } from '../lib/render.js'
+
+  const dispatch = createEventDispatcher()
 
   // `store` holds the picture. Only the player whose turn it is (`canDraw`) can add to it.
   export let store
@@ -10,6 +12,12 @@
   export let size = 2
   // called with each drawing event so it can be sent to the server
   export let send = () => {}
+  // Looking back over a finished drawing: `pickable` lets a tap choose whose strokes to look at
+  // (the board says which with a 'pick' event), `focus` is that player's id (everyone else's
+  // strokes fade), and `players` puts each player's shape where their first stroke begins.
+  export let pickable = false
+  export let focus = null
+  export let players = null
 
   // 40ms between batches: smooth enough for others to watch live, few enough messages
   const FLUSH_MS = 40
@@ -57,7 +65,40 @@
   function repaint() {
     clear(ctx, width, height)
     clear(liveCtx, width, height)
-    for (const stroke of store.strokes) drawStroke(stroke.done ? ctx : liveCtx, stroke, width, height)
+    for (const stroke of store.strokes) {
+      const target = stroke.done ? ctx : liveCtx
+      target.globalAlpha = faded(stroke.player_id) ? FADE : 1
+      drawStroke(target, stroke, width, height)
+      target.globalAlpha = 1
+    }
+    if (players) drawMarks()
+  }
+
+  const FADE = 0.12
+  const faded = id => focus !== null && id !== focus
+
+  // each player's shape, at the start of the first thing they drew
+  function drawMarks() {
+    const radius = Math.max(7, width * 0.022)
+    for (const player of players) {
+      const first = store.strokes.find(s => s.player_id === player.id)
+      if (!first) continue
+      ctx.globalAlpha = faded(player.id) ? FADE : 1
+      drawMarker(ctx, player.shape, first.points[0][0] * width, first.points[0][1] * height, radius, player.color)
+    }
+    ctx.globalAlpha = 1
+  }
+
+  // whenever whose strokes are in focus (or which shapes are shown) changes, paint again
+  $: if (ctx) repaintFor(focus, players)
+  function repaintFor() {
+    repaint()
+  }
+
+  function pick(event) {
+    if (!pickable || canDraw) return
+    const hit = strokeAt(store.strokes, pointOf(event), width, height)
+    dispatch('pick', hit?.player_id ?? null)
   }
 
   onMount(() => {
@@ -154,6 +195,7 @@
     class="absolute inset-0 h-full w-full {canDraw ? 'cursor-crosshair' : ''}"
     style="touch-action: {canDraw ? 'none' : 'auto'}; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent"
     on:contextmenu|preventDefault
+    on:click={pick}
     on:pointerdown={begin}
     on:pointermove={move}
     on:pointerup={end}
