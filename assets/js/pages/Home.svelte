@@ -71,4 +71,12 @@
   {#if error}
     <p class="mt-5 font-stamp text-sm text-riso-stamp" role="alert">{error}</p>
   {/if}
+
+  <button
+    type="button"
+    id="home-how-to-play"
+    class="mt-8 cursor-pointer font-stamp text-sm text-riso-muted underline decoration-riso-line underline-offset-4 transition hover:text-riso-ink hover:decoration-riso-ink"
+    on:click={() => dispatch('help')}>
+    New here? How to play
+  </button>
 </main>
