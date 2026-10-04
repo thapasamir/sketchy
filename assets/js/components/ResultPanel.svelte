@@ -13,7 +13,8 @@
   $: name = id => result.names[id] ?? 'Someone'
   $: colorOf = id => room.players.find(p => p.id === id)?.color ?? '#999'
   $: voters = Object.keys(result.votes)
-  $: ranking = [...room.players].sort((a, b) => b.score - a.score)
+  // only people who played (someone watching has no score yet)
+  $: ranking = room.players.filter(p => !p.spectator).sort((a, b) => b.score - a.score)
   $: lastRound = room.round >= room.rounds
   $: top = ranking[0]?.score
   // highlight the leader(s), unless everyone is level (then it says nothing)

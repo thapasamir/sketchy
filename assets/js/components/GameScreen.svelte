@@ -58,7 +58,10 @@
   $: drawer = turn ? byId[turn.player_id] : null
   $: me = byId[playerId]
   $: myTurn = drawing && turn.player_id === playerId
-  $: order = turn ? turn.order.map(id => byId[id]).filter(Boolean) : room.players
+  // someone who arrived mid-game only watches until the next round starts
+  $: iAmWatching = !!me?.spectator
+  $: watchers = room.players.filter(p => p.spectator)
+  $: order = turn ? turn.order.map(id => byId[id]).filter(Boolean) : room.players.filter(p => !p.spectator)
 
   // The server sends how long is left when the turn changes; we count down from there. Counting
   // locally is smooth, and it needs no shared clock between the browser and the server.
@@ -245,6 +248,14 @@
     </div>
     {/key}
 
+    {#if iAmWatching}
+      <p
+        id="spectator-note"
+        class="shrink-0 border-2 border-dashed border-riso-ink bg-riso-yellow/40 px-3 py-2 text-center font-stamp text-sm">
+        You joined after the game began, so you're watching. You'll play from the next round.
+      </p>
+    {/if}
+
     <!-- on a phone the sidebar is far below the canvas, and you need your word while you draw -->
     {#if secret && !hidden && phase !== 'result'}
       <div id="secret-bar" class="flex shrink-0 items-center justify-between gap-3 border-2 border-riso-ink/70 bg-white/60 px-3 py-2 lg:hidden">
@@ -382,8 +393,14 @@
           </li>
         {/each}
       </ol>
+      {#if watchers.length}
+        <p id="watchers" class="mt-3 font-stamp text-xs text-riso-muted">
+          Watching: {watchers.map(w => w.name + (w.id === playerId ? ' (you)' : '')).join(', ')}
+        </p>
+      {/if}
     </Card>
 
+    {#if secret}
     <Card id="secret-card" class="!p-4 text-center">
       <div class="mb-2 flex items-center justify-between gap-2 text-left">
         <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
@@ -415,6 +432,7 @@
         {/if}
       {/if}
     </Card>
+    {/if}
     {/if}
   </aside>
 </div>

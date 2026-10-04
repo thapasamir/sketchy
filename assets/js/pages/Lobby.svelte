@@ -7,6 +7,8 @@
   import FinalScreen from '../components/FinalScreen.svelte'
   import ChatPanel from '../components/ChatPanel.svelte'
   import QrCode from '../components/QrCode.svelte'
+  import Toasts from '../components/Toasts.svelte'
+  import { noticesFor } from '../lib/notices.js'
   import { append, load as loadChat, save as saveChat, clear as clearChat } from '../lib/chatlog.js'
   import { createStrokeStore } from '../lib/strokes.js'
   import { fly } from 'svelte/transition'
@@ -127,6 +129,21 @@
   // a note about an earlier problem shouldn't outlive the moment chat closes
   $: if (room && !room.chat_open) chatError = ''
 
+  // --- who came and went ---
+
+  let notices = []
+  let noticeId = 0
+  let noticeTimers = []
+
+  // each notice shows for a few seconds; no more than four at once (the oldest make way)
+  function notify(list) {
+    for (const notice of list) {
+      const id = ++noticeId
+      notices = [...notices, { ...notice, id }].slice(-4)
+      noticeTimers.push(setTimeout(() => (notices = notices.filter(n => n.id !== id)), 4500))
+    }
+  }
+
   // --- sound and attention ---
 
   let cueTimers = []
@@ -135,6 +152,7 @@
   // lib/cues.js), play it, and update the screen.
   function applyUpdate(next, nextSecret, nextVote) {
     const cues = cuesFor(room, next, playerId, nextSecret)
+    notify(noticesFor(room, next, playerId))
     room = next
     secret = nextSecret
     vote = nextVote
@@ -225,6 +243,7 @@
   onDestroy(() => {
     clearInterval(countdown)
     cueTimers.forEach(clearTimeout)
+    noticeTimers.forEach(clearTimeout)
     restoreTitle()
     document.removeEventListener('visibilitychange', onVisibility)
     // leaving for good ends this conversation (a refresh doesn't come through here)
@@ -351,6 +370,8 @@
 
   const labelClass = 'mb-2 block font-stamp text-xs uppercase tracking-widest'
 </script>
+
+<Toasts {notices} />
 
 <main
   class="mx-auto flex min-h-dvh w-full flex-col gap-8 px-4 pb-24 pt-6 sm:pt-8 {inGame ? 'max-w-6xl' : 'max-w-4xl'}">
@@ -508,6 +529,12 @@
                 obvious. One of you doesn't know it.
               </p>
             {/if}
+          {:else}
+            <!-- no card: they arrived after the game began -->
+            <h3 id="spectator-note" class="font-display text-2xl">You're watching</h3>
+            <p class="text-sm text-riso-muted">
+              The cards are being dealt for this round. You'll be dealt in from the next one.
+            </p>
           {/if}
 
           <p id="reveal-countdown" class="font-stamp text-sm uppercase tracking-widest text-riso-muted">

@@ -40,13 +40,19 @@ export function cuesFor(prev, next, me, secret) {
     case 'guess':
       return [{ name: 'caught' }]
     case 'result':
-      return next.result ? [{ name: resultSound(next.result, me), delay: TIMING.nameImpact }] : []
+      // someone only watching has no side to win or lose for: a neutral sound
+      return next.result
+        ? [{ name: watching(next, me) ? 'bell' : resultSound(next.result, me), delay: TIMING.nameImpact }]
+        : []
     case 'final':
       return [{ name: next.final?.winner_ids?.includes(me) ? 'fanfare' : 'end' }]
     default:
       return []
   }
 }
+
+// did I arrive after the game began, so I'm only watching this round?
+const watching = (room, me) => room.players?.find(p => p.id === me)?.spectator === true
 
 // how a round's result sounds depends on which side I'm on
 export function resultSound(result, me) {

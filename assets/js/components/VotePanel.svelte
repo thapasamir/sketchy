@@ -7,9 +7,13 @@
   export let vote = null
   export let castVote = () => {}
 
-  $: candidates = room.players.filter(p => p.id !== playerId)
+  // Only the people playing the round vote and are voted for. Someone who arrived mid-game is
+  // watching: they can see the vote happen, but have no vote.
+  $: contestants = room.players.filter(p => !p.spectator)
+  $: iAmWatching = room.players.find(p => p.id === playerId)?.spectator
+  $: candidates = contestants.filter(p => p.id !== playerId)
   $: voted = room.vote?.voted ?? []
-  $: here = room.players.filter(p => p.connected).length
+  $: here = contestants.filter(p => p.connected).length
 </script>
 
 <Card id="vote-panel" class="animate-rise !p-4">
@@ -18,6 +22,11 @@
     <span id="vote-count" class="font-stamp text-xs text-riso-muted">{voted.length} of {here} voted</span>
   </div>
 
+  {#if iAmWatching}
+    <p id="vote-watching" class="font-stamp text-sm text-riso-muted">
+      You're watching this round, so you don't vote. You'll play from the next one.
+    </p>
+  {:else}
   <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
     {#each candidates as player (player.id)}
       <button
@@ -40,11 +49,12 @@
     {/each}
   </div>
 
-  <p class="mt-3 font-stamp text-xs text-riso-muted">
-    {#if vote}
-      You can change your vote until time runs out.
-    {:else}
-      Look at the picture. Whose drawing doesn't fit the word?
-    {/if}
-  </p>
+    <p class="mt-3 font-stamp text-xs text-riso-muted">
+      {#if vote}
+        You can change your vote until time runs out.
+      {:else}
+        Look at the picture. Whose drawing doesn't fit the word?
+      {/if}
+    </p>
+  {/if}
 </Card>

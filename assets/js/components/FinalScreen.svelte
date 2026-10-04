@@ -13,7 +13,7 @@
   export let sendChat = async () => true
   export let chatError = ''
 
-  $: ranking = [...room.players].sort((a, b) => b.score - a.score)
+  $: ranking = room.players.filter(p => !p.spectator).sort((a, b) => b.score - a.score)
   $: winners = room.players.filter(p => room.final.winner_ids.includes(p.id))
   $: iWon = room.final.winner_ids.includes(playerId)
   $: hostName = room.players.find(p => p.id === room.host_id)?.name ?? 'The host'

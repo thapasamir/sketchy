@@ -79,6 +79,15 @@ test('every outcome sounds right for each side', () => {
   assert.equal(sound('imposter_left', 'p1'), 'lose')
 })
 
+test('someone only watching hears a neutral sound at a result, not a win or a loss', () => {
+  const watcher = { id: 'w', spectator: true }
+  const result = { outcome: 'escaped', imposter_id: 'p1' }
+  const next = room('result', { result, players: [...players(3), watcher] })
+  assert.deepEqual(names(cuesFor(room('voting'), next, 'w')), ['bell'])
+  // a player in the same room still hears their own outcome
+  assert.deepEqual(names(cuesFor(room('voting'), next, 'p1')), ['win'])
+})
+
 test('the final: fanfare for a winner (including in a tie), a soft end for everyone else', () => {
   const final = room('final', { final: { winner_ids: ['p0', 'p1'] } })
   assert.deepEqual(names(cuesFor(room('result'), final, 'p0')), ['fanfare'])
