@@ -1,28 +1,8 @@
 // What this browser remembers: who you are, and which room you are sitting in.
+import { read, write, remove } from './storage.js'
+
 const USER = 'sketchy:user'
 const SEAT = 'sketchy:seat'
-
-function read(key) {
-  try {
-    return JSON.parse(localStorage.getItem(key))
-  } catch {
-    return null
-  }
-}
-
-function write(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    // storage blocked (private mode): the game still works, you just won't be remembered
-  }
-}
-
-function remove(key) {
-  try {
-    localStorage.removeItem(key)
-  } catch {}
-}
 
 export function loadUser() {
   const user = read(USER)
