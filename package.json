@@ -5,12 +5,15 @@
     "build": "npm run build:js && npm run build:css",
     "build:prod": "NODE_ENV=production node esbuild.js && tailwindcss -i assets/css/app.css -o priv/static/assets/app.css --minify",
     "dev": "node esbuild.js --watch",
-    "test:js": "node --test assets/js/lib/*.test.js"
+    "test:js": "node --test assets/js/lib/*.test.js",
+    "test:e2e": "node e2e/run.js"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.0",
     "esbuild": "^0.25.4",
     "esbuild-svelte": "^0.9.5",
+    "jsqr": "^1.4.0",
+    "puppeteer-core": "^25.12.0",
     "svelte": "^5.57.1",
     "tailwindcss": "^4.1.0"
   },

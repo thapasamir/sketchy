@@ -35,3 +35,6 @@ backend-*.tar
 npm-debug.log
 /node_modules/
 
+
+# Output of the browser tests (logs and screenshots).
+/e2e/out/
