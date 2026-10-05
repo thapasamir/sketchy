@@ -187,7 +187,7 @@
 
 <!-- Wide screens: the stage (banner, picture, tools, all one width and sized to fit the window) on the
      left, and one sidebar on the right whose chat fills whatever height is left. -->
-<div class="grid items-start gap-6 lg:grid-cols-[max(20rem,calc(100dvh-17rem))_21rem] lg:justify-center lg:gap-6">
+<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[max(20rem,calc(100dvh-17rem))_21rem] lg:justify-center lg:gap-6">
   <section
     class="flex min-w-0 flex-col gap-3 {immersive
       ? 'immersive-board animate-fade fixed inset-0 z-40 !gap-2 bg-riso-paper'
@@ -330,7 +330,7 @@
 
     {#if looking}
       <div class="flex shrink-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
-        <div id="highlight-legend" class="min-w-0 flex-1">
+        <div id="highlight-legend" class="min-w-0 flex-1 basis-full lg:basis-0">
           <div class="flex flex-wrap gap-1.5" role="group" aria-label="Show one player's drawing">
             {#each contestants as player (player.id)}
               <button
