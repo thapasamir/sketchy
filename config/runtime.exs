@@ -23,6 +23,33 @@ end
 config :backend, BackendWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# --- Abuse limits (see Backend.RateLimit) ---
+#
+#   RATE_LIMITS=off          turn every limit off
+#   RATE_LIMIT_SCALE=0.5     multiply every count (0.5 = half as many allowed, 2 = twice)
+#   MAX_ROOMS=300            how many rooms may run at once
+if System.get_env("RATE_LIMITS") in ~w(off false 0) do
+  config :backend, :rate_limits, enabled: false
+end
+
+with scale when is_binary(scale) <- System.get_env("RATE_LIMIT_SCALE"),
+     {value, ""} when value > 0 <- Float.parse(scale) do
+  config :backend, :rate_limits, scale: value
+end
+
+if max_rooms = System.get_env("MAX_ROOMS") do
+  config :backend, :max_rooms, String.to_integer(max_rooms)
+end
+
+# Limits are counted per address. Behind Fly's proxy every connection comes from the proxy, and the
+# caller's real address is in the `fly-client-ip` header, which is trustworthy only because the
+# proxy is the only way in. So it is used in production, or wherever CLIENT_IP_HEADER names a
+# header set by a proxy you trust. Never set this if the app can be reached directly: anyone could
+# then send that header themselves and pick which address they are counted as.
+if header = System.get_env("CLIENT_IP_HEADER") || (config_env() == :prod && "fly-client-ip") do
+  config :backend, :client_ip_header, header
+end
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :backend, BackendWeb.Endpoint,

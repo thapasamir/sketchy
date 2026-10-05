@@ -16,6 +16,9 @@ defmodule Backend.Application do
       {DNSCluster, query: Application.get_env(:backend, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Backend.PubSub},
       {Registry, keys: :unique, name: Backend.RoomRegistry},
+      # the abuse limits: counts per caller, and which live connections each address holds
+      Backend.RateLimit,
+      {Registry, keys: :duplicate, name: Backend.SeatRegistry},
       {DynamicSupervisor, name: Backend.RoomSupervisor, strategy: :one_for_one},
       BackendWeb.Endpoint
     ]

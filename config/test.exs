@@ -47,3 +47,7 @@ config :backend,
   result_ms: 800,
   chat_interval_ms: 150,
   react_interval_ms: 150
+
+# Tests make many users and rooms from one address in a moment, so the abuse limits are off, and
+# the tests of the limits themselves switch them on (see test/backend/rate_limit_test.exs)
+config :backend, :rate_limits, enabled: false
