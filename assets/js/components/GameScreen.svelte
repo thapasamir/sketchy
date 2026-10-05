@@ -11,6 +11,7 @@
   import ReactionBar from './ReactionBar.svelte'
   import ReactionLayer from './ReactionLayer.svelte'
   import RevealStamp from './RevealStamp.svelte'
+  import TurnProgress from './TurnProgress.svelte'
   import { play } from '../lib/sound.js'
   import { tickFor, TIMING } from '../lib/cues.js'
 
@@ -356,14 +357,15 @@
     {#if looking}
       <div class="flex shrink-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <div id="highlight-legend" class="min-w-0 flex-1 basis-full lg:basis-0">
-          <div class="flex flex-wrap gap-1.5" role="group" aria-label="Show one player's drawing">
+          <!-- one row you can swipe on a phone (eight names would take three rows), wrapping on a wide screen -->
+          <div class="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0" role="group" aria-label="Show one player's drawing">
             {#each contestants as player (player.id)}
               <button
                 type="button"
                 data-highlight={player.name}
                 aria-pressed={focus === player.id}
                 on:click={() => toggleFocus(player.id)}
-                class="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border-2 py-1 pl-1.5 pr-3 text-sm transition active:scale-[0.97] {focus === player.id
+                class="flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border-2 py-1 pl-1.5 pr-3 text-sm transition active:scale-[0.97] {focus === player.id
                   ? 'border-riso-ink bg-riso-yellow'
                   : 'border-riso-line bg-white/60 hover:border-riso-ink'} {focus && focus !== player.id ? 'opacity-60' : ''}">
                 <Marker {player} size={22} />
@@ -436,6 +438,9 @@
       {/if}
     {:else}
     <!-- during the vote the wide layout lists everyone in the vote panel instead -->
+    {#if drawing}
+      <TurnProgress {room} {playerId} />
+    {/if}
     {#if phase !== 'voting' || narrow}
     <Card class="order-3 !p-4 lg:order-3 lg:shrink-0 lg:!p-3">
       <h3 class="mb-3 font-display text-lg lg:mb-2">{drawing ? 'Drawing order' : 'Players'}</h3>

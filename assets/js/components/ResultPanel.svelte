@@ -31,23 +31,30 @@
 
 <div class="flex flex-col gap-4 lg:gap-3">
   <Card id="reveal-card" class="animate-rise !p-4 text-center lg:!p-3">
-    <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">The imposter was</div>
-    <div id="reveal-imposter" class="mt-1 flex items-center justify-center gap-2">
-      <span
-        style="animation-delay:{TIMING.nameStart}ms"
-        class="inline-flex animate-stamp items-center gap-2">
-        <Marker player={room.players.find(p => p.id === result.imposter_id)} size={28} />
-        <span class="break-words font-display text-2xl text-riso-pink mix-blend-multiply">{name(result.imposter_id)}</span>
-      </span>
+    <!-- side by side where it is narrow but wide enough (a phone), stacked in the sidebar -->
+    <div class="grid grid-cols-2 gap-3 lg:block">
+      <div>
+        <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">The imposter was</div>
+        <div id="reveal-imposter" class="mt-1 flex items-center justify-center gap-2">
+          <span
+            style="animation-delay:{TIMING.nameStart}ms"
+            class="inline-flex animate-stamp items-center gap-2">
+            <Marker player={room.players.find(p => p.id === result.imposter_id)} size={28} />
+            <span class="break-words font-display text-2xl text-riso-pink mix-blend-multiply">{name(result.imposter_id)}</span>
+          </span>
+        </div>
+      </div>
+      <div>
+        <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted lg:mt-2">The word was</div>
+        <div
+          id="reveal-word"
+          style="animation-delay:{WORD_AT}ms"
+          class="mt-1 animate-pop break-words font-display text-2xl text-riso-blue">
+          {result.word}
+        </div>
+        <div class="mt-1 font-stamp text-xs text-riso-muted">{result.category}</div>
+      </div>
     </div>
-    <div class="mt-3 font-stamp text-xs uppercase tracking-widest text-riso-muted lg:mt-2">The word was</div>
-    <div
-      id="reveal-word"
-      style="animation-delay:{WORD_AT}ms"
-      class="mt-1 animate-pop break-words font-display text-2xl text-riso-blue">
-      {result.word}
-    </div>
-    <div class="mt-1 font-stamp text-xs text-riso-muted">{result.category}</div>
     {#if result.guess}
       <div id="reveal-guess" style="animation-delay:{GUESS_AT}ms" class="mt-2 animate-rise font-stamp text-xs text-riso-muted">
         {name(result.imposter_id)} guessed: <b class="text-riso-ink">{result.guess}</b>
