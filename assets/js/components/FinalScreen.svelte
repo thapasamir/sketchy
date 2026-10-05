@@ -31,7 +31,9 @@
   <Confetti />
 {/if}
 
-<div class="mx-auto flex w-full max-w-lg flex-col gap-4">
+<!-- the results on the left and the chat beside them, like the game and the lobby -->
+<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 {room.chat_open ? 'lg:grid-cols-[minmax(0,1fr)_21rem]' : 'mx-auto max-w-2xl'}">
+<div class="flex min-w-0 flex-col gap-4">
   <Card id="final-banner" class="text-center">
     <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
       Game over after {room.final.rounds_played} {room.final.rounds_played === 1 ? 'round' : 'rounds'}
@@ -71,10 +73,6 @@
     </ol>
   </Card>
 
-  {#if room.chat_open}
-    <ChatPanel {messages} players={room.players} {playerId} send={sendChat} error={chatError} hint="Good game? Say so." />
-  {/if}
-
   {#if error}
     <p class="text-center font-stamp text-sm text-riso-stamp" role="alert">{error}</p>
   {/if}
@@ -88,4 +86,11 @@
       Waiting for {hostName} to start another game.
     </p>
   {/if}
+</div>
+
+{#if room.chat_open}
+  <aside class="lg:sticky lg:top-4 lg:flex lg:h-[calc(100dvh-7rem)] lg:min-h-[26rem] lg:flex-col">
+    <ChatPanel fill {messages} players={room.players} {playerId} send={sendChat} error={chatError} hint="Good game? Say so." />
+  </aside>
+{/if}
 </div>
