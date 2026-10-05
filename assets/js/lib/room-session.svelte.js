@@ -7,6 +7,7 @@ import { createStrokeStore } from './strokes.js'
 import { cuesFor } from './cues.js'
 import { noticesFor } from './notices.js'
 import { play } from './sound.js'
+import { saveAvatar } from './avatar.js'
 import { joinReasons, drawReasons, describeAction } from './messages.js'
 import { Chat } from './chat.svelte.js'
 import { FloatingReactions } from './floating-reactions.svelte.js'
@@ -228,6 +229,12 @@ export class RoomSession {
       .push(event, payload)
       .receive('error', ({ reason }) => (this.actionError = describeAction(reason, this.minPlayers)))
       .receive('timeout', () => (this.actionError = joinReasons.timeout))
+  }
+
+  // change my face: remember it for next time, and tell the room
+  setAvatar = face => {
+    saveAvatar(face)
+    this.send('set_avatar', face)
   }
 
   startGame = () => this.send('start')

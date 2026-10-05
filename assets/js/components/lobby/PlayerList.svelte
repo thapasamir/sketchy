@@ -4,7 +4,7 @@
 
   // Who is here. Empty places are shown for the players the game still needs, so the list says how
   // close the room is to starting. `onkick(playerId)` is only called once the host has confirmed.
-  let { players, hostId, playerId, canKick = false, onkick, minPlayers = 3 } = $props()
+  let { players, hostId, playerId, canKick = false, onkick, onedit, minPlayers = 3 } = $props()
 
   // Removing someone takes two clicks so a slip can't kick a friend
   let confirming = $state(null)
@@ -38,7 +38,21 @@
         ? 'border-riso-pink bg-riso-pink/5'
         : 'border-riso-blue bg-riso-blue/5'} {player.connected ? '' : 'opacity-50'}">
       <span class="flex min-w-0 items-center gap-2.5">
-        <Marker {player} size={26} />
+        {#if player.id === playerId && onedit}
+          <!-- your own marker is the way to change your look -->
+          <button
+            type="button"
+            id="edit-avatar"
+            aria-label="Change your look"
+            title="Change your look"
+            onclick={onedit}
+            class="group relative shrink-0 cursor-pointer rounded-full transition hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-riso-blue">
+            <Marker {player} size={34} />
+            <span aria-hidden="true" class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full border border-riso-ink bg-white text-[0.6rem] leading-none">✎</span>
+          </button>
+        {:else}
+          <Marker {player} size={34} />
+        {/if}
         <span class="min-w-0 break-words">
           {player.name}
           {#if player.id === hostId}<span class="font-stamp text-xs text-riso-pink mix-blend-multiply">(Host)</span>{/if}

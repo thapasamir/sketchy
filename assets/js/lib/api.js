@@ -35,5 +35,5 @@ export const registerUser = (username, email, password) => post('/api/users/regi
 export const loginUser = (username, password) => post('/api/users/login', { username, password })
 export const getMe = () => request('GET', '/api/users/me')
 
-export const createRoom = name => post('/api/rooms', { name })
-export const joinRoom = (code, name) => post(`/api/rooms/${encodeURIComponent(code)}/join`, { name })
+export const createRoom = (name, avatar) => post('/api/rooms', { name, avatar })
+export const joinRoom = (code, name, avatar) => post(`/api/rooms/${encodeURIComponent(code)}/join`, { name, avatar })

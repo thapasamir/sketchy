@@ -1,6 +1,9 @@
 <script>
+  import AvatarEditor from '../AvatarEditor.svelte'
+  import Button from '../Button.svelte'
   import Card from '../Card.svelte'
   import ChatPanel from '../ChatPanel.svelte'
+  import Modal from '../Modal.svelte'
   import InvitePanel from './InvitePanel.svelte'
   import LobbyAction from './LobbyAction.svelte'
   import PlayerList from './PlayerList.svelte'
@@ -15,6 +18,10 @@
 
   let room = $derived(session.room)
   let chatOpen = $derived(room.chat_open)
+
+  // changing your own look (tap your marker in the player list)
+  let editingAvatar = $state(false)
+  let me = $derived(session.me)
 
   // is the screen wide enough for the side column?
   let wide = $state(false)
@@ -59,6 +66,7 @@
           playerId={session.playerId}
           canKick={session.isHost && !session.playing}
           onkick={session.kick}
+          onedit={() => (editingAvatar = true)}
           minPlayers={session.minPlayers} />
         <p class="mt-auto pt-5 font-stamp text-xs text-riso-muted">
           Friends join with the room code, or the invite link, above.
@@ -114,3 +122,12 @@
     </aside>
   {/if}
 </div>
+
+{#if editingAvatar && me}
+  <Modal id="avatar-dialog" title="Your look" onclose={() => (editingAvatar = false)}>
+    <AvatarEditor face={me.avatar} color={me.color ?? '#ffe800'} name={me.name} id={me.id} onchange={session.setAvatar} />
+    {#snippet footer()}
+      <Button id="avatar-done" variant="yellow" class="w-full py-3 text-lg" onclick={() => (editingAvatar = false)}>Done</Button>
+    {/snippet}
+  </Modal>
+{/if}

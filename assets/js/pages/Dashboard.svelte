@@ -3,7 +3,9 @@
   import Button from '../components/Button.svelte'
   import Card from '../components/Card.svelte'
   import Field from '../components/Field.svelte'
+  import AvatarPicker from '../components/AvatarPicker.svelte'
   import { createRoom, joinRoom } from '../lib/api.js'
+  import { loadAvatar, saveAvatar } from '../lib/avatar.js'
 
   const dispatch = createEventDispatcher()
 
@@ -18,6 +20,13 @@
   let code = inviteCode
   let error = notice
   let busy = ''
+
+  // the face this browser last chose, sent along when joining or making a room
+  let avatar = loadAvatar()
+  const changeAvatar = face => {
+    avatar = face
+    saveAvatar(face)
+  }
 
   $: code = code.toUpperCase().replace(/[^A-Z]/g, '')
 
@@ -35,7 +44,7 @@
     busy = kind
     try {
       const result =
-        kind === 'join' ? await joinRoom(code, name.trim()) : await createRoom(name.trim())
+        kind === 'join' ? await joinRoom(code, name.trim(), avatar) : await createRoom(name.trim(), avatar)
 
       dispatch('enter', { code: result.code, playerId: result.player_id, name: name.trim() })
     } catch (e) {
@@ -77,6 +86,8 @@
           Everyone draws, someone is the imposter.
         {/if}
       </p>
+
+      <div class="mb-5"><AvatarPicker face={avatar} onchange={changeAvatar} /></div>
 
       {#if !registered}
         <Field id="name" label="Your name" bind:value={name} placeholder="What should we call you?" maxlength="20" autocomplete="nickname" autofocus />
