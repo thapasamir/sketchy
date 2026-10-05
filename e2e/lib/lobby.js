@@ -24,4 +24,15 @@ async function setSetting(page, setting, value) {
   await settled(350)
 }
 
-module.exports = { openSettings, closeSettings, setSetting }
+// The lobby's player rows as text ("Samir (Host) (You)", "Priya Remove"), without the coloured
+// marker in front of each name (its initial letter would otherwise be read as part of the text).
+const playerRows = page =>
+  page.$eval('#player-list', list =>
+    [...list.querySelectorAll('li')].map(li => {
+      const copy = li.cloneNode(true)
+      copy.querySelectorAll('[data-marker]').forEach(marker => marker.remove())
+      return copy.textContent.replace(/\s+/g, ' ').trim()
+    })
+  )
+
+module.exports = { openSettings, closeSettings, setSetting, playerRows }

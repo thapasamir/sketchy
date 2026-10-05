@@ -3,7 +3,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms))
 const { U, launch } = require('../lib/browser')
 const click = (p, t) => p.evaluate(t => { const b=[...document.querySelectorAll('button')].find(x => x.textContent.trim()===t); if(!b) throw new Error('no button "'+t+'"'); b.click() }, t)
 const has = (p, t) => p.evaluate(t => document.body.innerText.includes(t), t)
-const players = p => p.$eval('#player-list', e => [...e.querySelectorAll('li')].map(l => l.innerText.replace(/\s+/g,' ').trim()))
+const { playerRows: players } = require('../lib/lobby')
 const path = p => p.evaluate(() => location.pathname)
 const exists = (p, sel) => p.$(sel).then(Boolean)
 let fails = 0

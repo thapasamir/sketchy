@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer-core')
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const click = (p, t) => p.evaluate(t => { const b=[...document.querySelectorAll('button')].find(x => x.textContent.trim()===t); if(!b) throw new Error('no button '+t); b.click() }, t)
 const body = p => p.evaluate(() => document.body.innerText.replace(/\s+/g,' '))
-const list = p => p.$eval('#player-list', e => [...e.querySelectorAll('li')].map(l => l.innerText.replace(/\s+/g,' ').trim()))
+const { playerRows: list } = require('../lib/lobby')
 const ok = (n, c, extra='') => console.log(c ? 'PASS' : 'FAIL', n, extra)
 const { U, launch } = require('../lib/browser')
 const URL = U + '/'

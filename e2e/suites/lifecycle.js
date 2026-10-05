@@ -4,7 +4,7 @@ const { U, launch } = require('../lib/browser')
 const { setSetting } = require('../lib/lobby')
 const click = (p, t) => p.evaluate(t => { const b=[...document.querySelectorAll('button')].find(x => x.textContent.trim()===t); if(!b) throw new Error('no button "'+t+'"'); b.click() }, t)
 const has = (p, t) => p.evaluate(t => document.body.innerText.includes(t), t)
-const list = p => p.$eval('#player-list', e => [...e.querySelectorAll('li')].map(l => l.innerText.replace(/\s+/g,' ').trim()))
+const { playerRows: list } = require('../lib/lobby')
 const text = (p, sel) => p.$eval(sel, e => e.textContent.trim())
 let fails = 0
 const ok = (n, c, x='') => { if(!c) fails++; console.log(c ? 'PASS' : 'FAIL', n, x) }
