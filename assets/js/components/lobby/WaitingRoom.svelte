@@ -13,7 +13,8 @@
   let room = $derived(session.room)
 </script>
 
-<div class="grid gap-6 md:grid-cols-2">
+<!-- (a single column must be allowed to shrink below its content, or one wide child widens the page) -->
+<div class="grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-2">
   <Card>
     <h3 class="mb-5 font-display text-2xl sm:text-3xl">Room Code</h3>
     <InvitePanel code={session.code} inviteUrl={session.inviteUrl} />
