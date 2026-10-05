@@ -15,7 +15,7 @@
   let editing = $state(false)
 </script>
 
-<Card class="!p-5">
+<Card class="flex flex-col !p-5">
   <div class="mb-3 flex items-center justify-between gap-3">
     <h3 class="font-display text-xl">Settings</h3>
     {#if isHost}
@@ -29,8 +29,13 @@
     {/if}
   </div>
 
-  <div class="flex flex-col gap-3">
+  <div class="flex flex-1 flex-col gap-3">
     <SettingsSummary {room} {players} {hostName} {isHost} />
+    {#if isHost}
+      <p class="mt-auto pt-2 font-stamp text-xs text-riso-muted">
+        Changing a setting asks everyone to say they're ready again.
+      </p>
+    {/if}
   </div>
 </Card>
 

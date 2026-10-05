@@ -54,7 +54,7 @@
 </dl>
 
 {#if !isHost}
-  <p id="host-decides" class="font-stamp text-xs text-riso-muted">
+  <p id="host-decides" class="mt-auto pt-2 font-stamp text-xs text-riso-muted">
     <b class="text-riso-ink">{hostName}</b> chooses these. They change live if the host changes them.
   </p>
 {/if}

@@ -42,15 +42,17 @@
   })
 </script>
 
-<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-5 {chatOpen ? 'lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-stretch' : ''}">
+<!-- On a tall window the whole thing grows to fill it (up to a point), so there is no blank band
+     under the content: the cards stretch, the action stays at the bottom, the chat follows. -->
+<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:min-h-[min(calc(100dvh-7rem),46rem)] {chatOpen ? 'lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-stretch' : ''}">
   <div class="flex min-w-0 flex-col gap-5">
     <Card class="!p-5">
       <InvitePanel code={session.code} inviteUrl={session.inviteUrl} />
     </Card>
 
     <!-- side by side and the same height, so neither card leaves a gap under it -->
-    <div class="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-2 md:items-stretch">
-      <Card class="!p-5">
+    <div class="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-2 md:items-stretch lg:flex-1">
+      <Card class="flex flex-col !p-5">
         <PlayerList
           players={session.players}
           hostId={room.host_id}
@@ -58,6 +60,9 @@
           canKick={session.isHost && !session.playing}
           onkick={session.kick}
           minPlayers={session.minPlayers} />
+        <p class="mt-auto pt-5 font-stamp text-xs text-riso-muted">
+          Friends join with the room code, or the invite link, above.
+        </p>
       </Card>
 
       {#if session.playing}

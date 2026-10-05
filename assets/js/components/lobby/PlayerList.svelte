@@ -1,5 +1,6 @@
 <script>
   import { fly } from 'svelte/transition'
+  import Marker from '../Marker.svelte'
 
   // Who is here. Empty places are shown for the players the game still needs, so the list says how
   // close the room is to starting. `onkick(playerId)` is only called once the host has confirmed.
@@ -36,12 +37,15 @@
       class="flex min-h-12 items-center justify-between gap-3 rounded-[2px] border-l-4 px-3 py-2 transition-opacity {player.id === hostId
         ? 'border-riso-pink bg-riso-pink/5'
         : 'border-riso-blue bg-riso-blue/5'} {player.connected ? '' : 'opacity-50'}">
-      <span class="min-w-0 break-words">
-        {player.name}
-        {#if player.id === hostId}<span class="font-stamp text-xs text-riso-pink mix-blend-multiply">(Host)</span>{/if}
-        {#if player.id === playerId}<span class="font-stamp text-xs text-riso-muted">(You)</span>{/if}
-        {#if !player.connected}<span class="font-stamp text-xs text-riso-muted">(away)</span>{/if}
-        {#if player.ready && player.id !== hostId}<span class="font-stamp text-xs text-riso-blue">(ready)</span>{/if}
+      <span class="flex min-w-0 items-center gap-2.5">
+        <Marker {player} size={26} />
+        <span class="min-w-0 break-words">
+          {player.name}
+          {#if player.id === hostId}<span class="font-stamp text-xs text-riso-pink mix-blend-multiply">(Host)</span>{/if}
+          {#if player.id === playerId}<span class="font-stamp text-xs text-riso-muted">(You)</span>{/if}
+          {#if !player.connected}<span class="font-stamp text-xs text-riso-muted">(away)</span>{/if}
+          {#if player.ready && player.id !== hostId}<span class="font-stamp text-xs text-riso-blue">(ready)</span>{/if}
+        </span>
       </span>
 
       {#if canKick && player.id !== playerId}
