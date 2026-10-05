@@ -124,7 +124,7 @@
 </script>
 
 {#if view === 'lobby'}
-  <Lobby roomCode={seat.code} playerId={seat.playerId} on:leave={() => leave()} on:gone={e => leave(e.detail)} />
+  <Lobby roomCode={seat.code} playerId={seat.playerId} onleave={() => leave()} ongone={reason => leave(reason)} />
 {:else if view === 'auth'}
   <Auth mode={authMode} on:authed={authed} on:back={home} />
 {:else if view === 'dashboard'}
