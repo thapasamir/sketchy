@@ -13,16 +13,16 @@
   let chosen = $derived(chosenCategories(room.settings.categories, room.words.categories))
 </script>
 
-<dl class="flex flex-col divide-y divide-riso-line rounded-[3px] border-2 border-riso-line bg-white/60">
-  <div class="flex items-baseline justify-between gap-4 px-3 py-2.5">
+<dl class="flex flex-col divide-y divide-riso-line border-y border-riso-line">
+  <div class="flex items-baseline justify-between gap-4 py-2.5">
     <dt class="font-stamp text-xs uppercase tracking-widest">Rounds</dt>
     <dd id="rounds-value" class="font-display text-2xl text-riso-blue">{room.settings.rounds}</dd>
   </div>
-  <div class="flex items-baseline justify-between gap-4 px-3 py-2.5">
+  <div class="flex items-baseline justify-between gap-4 py-2.5">
     <dt class="font-stamp text-xs uppercase tracking-widest">Time per turn</dt>
     <dd id="drawtime-value" class="font-display text-2xl text-riso-blue">{room.settings.draw_time}s</dd>
   </div>
-  <div class="px-3 py-2.5">
+  <div class="py-2.5">
     <div class="flex items-baseline justify-between gap-4">
       <dt class="font-stamp text-xs uppercase tracking-widest">Laps per word</dt>
       <dd id="laps-value" class="font-display text-2xl text-riso-blue">{laps === 'auto' ? 'Auto' : laps}</dd>
@@ -35,7 +35,7 @@
       {/if}
     </p>
   </div>
-  <div class="px-3 py-2.5">
+  <div class="py-2.5">
     <div class="flex items-baseline justify-between gap-4">
       <dt class="font-stamp text-xs uppercase tracking-widest">Words</dt>
       <dd id="words-value" class="font-stamp text-sm">{DIFFICULTY[room.settings.difficulty] ?? ''}</dd>

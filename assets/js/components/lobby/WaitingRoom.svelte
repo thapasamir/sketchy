@@ -2,14 +2,15 @@
   import Card from '../Card.svelte'
   import ChatPanel from '../ChatPanel.svelte'
   import InvitePanel from './InvitePanel.svelte'
+  import LobbyAction from './LobbyAction.svelte'
   import PlayerList from './PlayerList.svelte'
   import RevealCard from './RevealCard.svelte'
   import SettingsCard from './SettingsCard.svelte'
 
-  // Everything before the drawing starts. Same shape as the game screen: the room on the left (its
-  // code and players, and the settings or the card you read), and the chat in a column on the right
-  // that fills the height. On a phone the chat is a bar you open, so it isn't at the bottom of a
-  // long page.
+  // Everything before the drawing starts. The room on the left, top to bottom: the code and how to
+  // share it, who is here beside what the game will be like, and the one thing to do next. The chat
+  // is a column on the right exactly as tall as that stack (so the bottoms line up, and it is never
+  // a tall empty slab). On a phone the chat is a bar you open, so it isn't at the bottom of a long page.
   let { session } = $props()
 
   let room = $derived(session.room)
@@ -41,29 +42,39 @@
   })
 </script>
 
-<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 {chatOpen ? 'lg:grid-cols-[minmax(0,1fr)_21rem]' : ''}">
-  <div class="grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-2">
-    <Card>
-      <h3 class="mb-5 font-display text-2xl sm:text-3xl">Room Code</h3>
+<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-5 {chatOpen ? 'lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-stretch' : ''}">
+  <div class="flex min-w-0 flex-col gap-5">
+    <Card class="!p-5">
       <InvitePanel code={session.code} inviteUrl={session.inviteUrl} />
-      <PlayerList
-        players={session.players}
-        hostId={room.host_id}
-        playerId={session.playerId}
-        canKick={session.isHost && !session.playing}
-        onkick={session.kick} />
     </Card>
 
-    {#if session.playing}
-      <RevealCard {room} secret={session.secret} secondsLeft={session.secondsLeft} />
-    {:else}
-      <SettingsCard {session} />
+    <!-- side by side and the same height, so neither card leaves a gap under it -->
+    <div class="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-2 md:items-stretch">
+      <Card class="!p-5">
+        <PlayerList
+          players={session.players}
+          hostId={room.host_id}
+          playerId={session.playerId}
+          canKick={session.isHost && !session.playing}
+          onkick={session.kick}
+          minPlayers={session.minPlayers} />
+      </Card>
+
+      {#if session.playing}
+        <RevealCard {room} secret={session.secret} secondsLeft={session.secondsLeft} />
+      {:else}
+        <SettingsCard {session} />
+      {/if}
+    </div>
+
+    {#if !session.playing}
+      <LobbyAction {session} />
     {/if}
   </div>
 
   <!-- (Closed while cards are read: see Chat.open?/1 on the server.) -->
   {#if chatOpen}
-    <aside id="lobby-chat" class="flex flex-col gap-3 lg:sticky lg:top-4 lg:h-[calc(100dvh-7rem)] lg:min-h-[26rem]">
+    <aside id="lobby-chat" class="relative flex flex-col gap-3 lg:min-h-[22rem]">
       {#if !wide}
         <button
           type="button"
@@ -83,14 +94,17 @@
       {/if}
 
       {#if wide || open}
-        <ChatPanel
-          fill
-          messages={session.chat.messages}
-          players={session.players}
-          playerId={session.playerId}
-          send={session.chat.send}
-          error={session.chat.error}
-          hint="Say hi while you wait for everyone." />
+        <!-- on a wide screen this fills the column without adding to its height, so the column is as tall as the room -->
+        <div class="flex flex-col lg:absolute lg:inset-0">
+          <ChatPanel
+            fill
+            messages={session.chat.messages}
+            players={session.players}
+            playerId={session.playerId}
+            send={session.chat.send}
+            error={session.chat.error}
+            hint="Say hi while you wait for everyone." />
+        </div>
       {/if}
     </aside>
   {/if}
