@@ -655,7 +655,9 @@ defmodule Backend.Rooms.Room do
   and an explicit allow-list means a new field is never sent by accident.
   """
   def to_public(%__MODULE__{} = room, now \\ System.system_time(:millisecond)) do
-    colors = (room.game && room.game.colors) || %{}
+    # In a game, the colours it dealt. Before one, the colours it WILL deal (by join order, the same
+    # way), so the lobby already shows each person as they will look, and nobody changes when it starts.
+    colors = (room.game && room.game.colors) || assign_colors(room.players)
 
     players =
       room.players

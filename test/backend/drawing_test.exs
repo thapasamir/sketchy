@@ -214,10 +214,33 @@ defmodule Backend.Rooms.DrawingTest do
       assert length(Enum.uniq(colors)) == 3
     end
 
-    test "the public player list carries the colours (and has none in the lobby)" do
+    test "the public player list carries the colours" do
       assert Enum.all?(Room.to_public(drawing()).players, &is_binary(&1.color))
-      lobby = Room.new("ABCD", "p0") |> Room.add_player("p0", "A")
-      assert [%{color: nil}] = Room.to_public(lobby).players
+    end
+
+    test "the lobby already shows the colour and shape each person will have, in join order" do
+      lobby =
+        Enum.reduce(0..2, Room.new("ABCD", "p0"), &Room.add_player(&2, "p#{&1}", "N#{&1}"))
+
+      players = Room.to_public(lobby).players
+      assert Enum.map(players, & &1.color) |> Enum.uniq() |> length() == 3
+      assert Enum.all?(players, &is_binary(&1.shape))
+      assert [%{color: "#ff48b0", shape: "circle"} | _] = players
+    end
+
+    test "and nobody changes colour when the game starts" do
+      lobby =
+        Enum.reduce(0..2, Room.new("ABCD", "p0"), &Room.add_player(&2, "p#{&1}", "N#{&1}"))
+
+      lobby = Enum.reduce(Map.keys(lobby.players), lobby, &Room.set_connected(&2, &1, true))
+      {:ok, lobby} = Room.set_ready(lobby, "p1", true)
+      {:ok, lobby} = Room.set_ready(lobby, "p2", true)
+
+      before = Room.to_public(lobby).players |> Map.new(&{&1.id, {&1.color, &1.shape}})
+      {:ok, started} = Room.start_game(lobby, "p0", deal())
+      after_start = Room.to_public(started).players |> Map.new(&{&1.id, {&1.color, &1.shape}})
+
+      assert before == after_start
     end
 
     test "all 8 seats can have a different colour" do
@@ -244,9 +267,6 @@ defmodule Backend.Rooms.DrawingTest do
       assert Room.shape_for("#1fb5b5") == "cross"
       assert Room.shape_for(nil) == nil
       assert Room.shape_for("#000000") == nil
-
-      lobby = Room.new("ABCD", "p0") |> Room.add_player("p0", "A")
-      assert [%{shape: nil}] = Room.to_public(lobby).players
     end
   end
 

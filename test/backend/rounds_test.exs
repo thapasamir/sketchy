@@ -224,7 +224,7 @@ defmodule Backend.Rooms.RoundsTest do
       assert room.game == nil
       assert room.scores == %{}
       assert map_size(room.players) == 4
-      assert Enum.all?(Room.to_public(room).players, &(&1.score == 0 and &1.color == nil))
+      assert Enum.all?(Room.to_public(room).players, &(&1.score == 0 and is_binary(&1.color)))
       assert Room.secret_for(room, "p1") == nil
     end
 
