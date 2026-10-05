@@ -7,6 +7,8 @@ export const joinReasons = {
   room_not_found: 'That room has closed. Start a new one or join another.',
   not_a_member: "You're not a player in that room.",
   timeout: 'Could not reach the server. Check your connection and try again.',
+  rate_limited: 'Too many tries from your connection. Wait a minute, then try again.',
+  too_many_connections: 'Too many rooms are open from your connection. Close a tab or two and try again.',
 }
 
 export const chatReasons = {
@@ -15,6 +17,7 @@ export const chatReasons = {
   empty: 'Type something first.',
   too_long: 'That message is too long.',
   not_a_member: "You're not in this room any more.",
+  rate_limited: 'Slow down a little.',
 }
 
 // an empty message means "say nothing": not being the drawer isn't worth a complaint
@@ -40,6 +43,7 @@ export const actionReasons = minPlayers => ({
   not_guessing: 'The guessing is over.',
   not_result: 'That can only be done after a round.',
   not_finished: 'The game is not over yet.',
+  rate_limited: "You're doing that too fast. Slow down a little.",
 })
 
 export const describeAction = (reason, minPlayers = 3) =>

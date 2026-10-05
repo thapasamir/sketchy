@@ -15,7 +15,8 @@
     "jsqr": "^1.4.0",
     "puppeteer-core": "^25.12.0",
     "svelte": "^5.57.1",
-    "tailwindcss": "^4.1.0"
+    "tailwindcss": "^4.1.0",
+    "ws": "^8.22.0"
   },
   "dependencies": {
     "phoenix": "^1.8.0"

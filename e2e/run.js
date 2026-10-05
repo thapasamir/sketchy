@@ -22,14 +22,25 @@ const outDir = path.join(__dirname, 'out')
 const port = Number(process.env.E2E_PORT || 4012)
 const url = `http://localhost:${port}`
 
-// Server settings, in milliseconds (see config/dev.exs for what each one is)
+// Server settings: the game's clocks in milliseconds (see config/dev.exs for what each one is),
+// and the abuse limits (see Backend.RateLimit).
+//
+// The abuse limits are ON in every profile, so every ordinary suite also proves that normal play
+// isn't slowed down by them. They are loosened to 10 times their count (RATE_LIMIT_SCALE) only
+// because a whole run makes far more guests and rooms from this one machine than any real person.
+// Per-connection message limits are not affected by that, and are the real thing.
+const LIMITS_EASED = { RATE_LIMIT_SCALE: 10 }
+
 const PROFILES = {
   // short, so a vote or a result runs out by itself within a test
-  fast: { REVEAL_MS: 1500, RECONNECT_GRACE_MS: 2500, TURN_MS: 5000, VOTE_MS: 8000, GUESS_MS: 8000, RESULT_MS: 6000 },
+  fast: { REVEAL_MS: 1500, RECONNECT_GRACE_MS: 2500, TURN_MS: 5000, VOTE_MS: 8000, GUESS_MS: 8000, RESULT_MS: 6000, ...LIMITS_EASED },
   // long, for tests that take their time and must not have a clock run out under them
-  steady: { REVEAL_MS: 1500, TURN_MS: 30000, VOTE_MS: 40000, GUESS_MS: 30000, RESULT_MS: 40000 },
+  steady: { REVEAL_MS: 1500, TURN_MS: 30000, VOTE_MS: 40000, GUESS_MS: 30000, RESULT_MS: 40000, ...LIMITS_EASED },
   // one turn of exactly 6 seconds, for the test that watches a turn run out
-  turn: { REVEAL_MS: 1500, RECONNECT_GRACE_MS: 2500, TURN_MS: 6000, VOTE_MS: 30000, GUESS_MS: 20000, RESULT_MS: 12000 },
+  turn: { REVEAL_MS: 1500, RECONNECT_GRACE_MS: 2500, TURN_MS: 6000, VOTE_MS: 30000, GUESS_MS: 20000, RESULT_MS: 12000, ...LIMITS_EASED },
+  // tight limits (a tenth of the real counts, at most 6 rooms), and the caller's address taken from
+  // a header so the test can be many different callers: only for the suite that tries to abuse the server
+  limited: { REVEAL_MS: 1500, RECONNECT_GRACE_MS: 2500, RATE_LIMIT_SCALE: 0.1, MAX_ROOMS: 6, CLIENT_IP_HEADER: 'x-test-ip' },
 }
 
 // which settings each suite needs (a suite not listed here uses 'fast')
@@ -37,6 +48,7 @@ const PROFILE_OF = {
   'first-screens': 'steady',
   'reveal-stage': 'steady',
   draw: 'turn',
+  'rate-limits': 'limited',
 }
 
 const args = process.argv.slice(2)
@@ -60,13 +72,21 @@ if (!chosen.length) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-// does something answer on the port?
-const answers = () =>
+// What does the port say to a request? null if nothing is listening, else the HTTP status.
+const probe = () =>
   new Promise(resolve => {
-    const req = http.get(url + '/', res => (res.resume(), resolve(res.statusCode < 500)))
-    req.on('error', () => resolve(false))
-    req.setTimeout(1500, () => (req.destroy(), resolve(false)))
+    const req = http.get(url + '/', res => (res.resume(), resolve(res.statusCode)))
+    req.on('error', () => resolve(null))
+    req.setTimeout(1500, () => (req.destroy(), resolve(null)))
   })
+
+// is something listening at all (even something broken)?
+const listening = async () => (await probe()) !== null
+// is the game up and well?
+const healthy = async () => {
+  const status = await probe()
+  return status !== null && status < 500
+}
 
 // are the built files older than the code they were built from?
 function assetsAreStale() {
@@ -100,7 +120,7 @@ async function startServer(profile) {
   child.on('exit', () => (exited = true))
   for (let i = 0; i < 300; i++) {
     if (exited) throw new Error(`The server stopped while starting. See e2e/out/server-${profile}.log`)
-    if (await answers()) return child
+    if (await healthy()) return child
     await sleep(300)
   }
   stopServer(child)
@@ -111,7 +131,7 @@ async function stopServer(child) {
   try {
     process.kill(-child.pid, 'SIGTERM')
   } catch {}
-  for (let i = 0; i < 20 && (await answers()); i++) await sleep(250)
+  for (let i = 0; i < 20 && (await listening()); i++) await sleep(250)
   try {
     process.kill(-child.pid, 'SIGKILL')
   } catch {}
@@ -142,8 +162,8 @@ function runSuite(suite, shots) {
 async function main() {
   fs.mkdirSync(path.join(outDir, 'shots'), { recursive: true })
 
-  if (await answers()) {
-    console.error(`Something is already answering on ${url}. Stop it, or set E2E_PORT to another port.`)
+  if (await listening()) {
+    console.error(`Something is already listening on ${url}. Stop it, or set E2E_PORT to another port.`)
     process.exit(2)
   }
   if (flag('build')) await run('npm', ['run', 'build'])
@@ -162,6 +182,8 @@ async function main() {
         let tries = 1
         while (!result.passed && tries <= retries) {
           console.log(`   ${suite}: failed, trying once more`)
+          // keep what the failed go said: a flaky pass would otherwise hide why it failed
+          fs.writeFileSync(path.join(outDir, `${suite}.failed-attempt-${tries}.log`), result.output)
           result = { ...(await runSuite(suite, path.join(outDir, 'shots'))), retried: true }
           tries++
         }

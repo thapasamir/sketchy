@@ -21,6 +21,13 @@ test('every sentence is plain text for a person', () => {
   for (const text of all) assert.ok(text.length > 5 && !/_/.test(text), text)
 })
 
+test('being slowed down is explained, in the room and when joining one', () => {
+  assert.match(describeAction('rate_limited'), /too fast/)
+  assert.match(chatReasons.rate_limited, /Slow down/)
+  assert.match(joinReasons.rate_limited, /Wait a minute/)
+  assert.match(joinReasons.too_many_connections, /Close a tab/)
+})
+
 test('not being the drawer is not worth a complaint', () => {
   assert.equal(drawReasons.not_your_turn, '')
 })
