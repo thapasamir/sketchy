@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer-core')
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const { U, launch } = require('../lib/browser')
+const { setSetting } = require('../lib/lobby')
 const click = (p, t) => p.evaluate(t => { const b=[...document.querySelectorAll('button')].find(x => x.textContent.trim()===t); if(!b) throw new Error('no button "'+t+'"'); b.click() }, t)
 const has = (p, t) => p.evaluate(t => document.body.innerText.includes(t), t)
 const list = p => p.$eval('#player-list', e => [...e.querySelectorAll('li')].map(l => l.innerText.replace(/\s+/g,' ').trim()))
@@ -15,7 +16,6 @@ async function player(b, name, url=U+'/') {
   await p.goto(url, { waitUntil: 'networkidle0' }); await click(p, 'Play as Guest'); await p.waitForSelector('#name')
   await p.type('#name', name); await p.keyboard.press('Enter'); await p.waitForSelector('#room-code'); return p
 }
-const setRange = (p, sel, v) => p.$eval(sel, (e, v) => { e.value = String(v); e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})) }, v)
 
 ;(async () => {
   const b = await launch()
@@ -31,10 +31,10 @@ const setRange = (p, sel, v) => p.$eval(sel, (e, v) => { e.value = String(v); e.
   await click(bob, "I'M READY"); await click(cara, "I'M READY"); await until(() => alice.$eval('#start-button', e => !e.disabled))
   ok('host can start with 3 connected and ready', await alice.$eval('#start-button', e => !e.disabled) && await has(alice, 'START GAME'))
   ok('non-host has Ready instead of Start', await bob.$exists?.('#x') === undefined && await bob.$('#ready-button') !== null && await bob.$('#start-button') === null)
-  ok('non-host sliders are disabled', await bob.$eval('#rounds', e => e.disabled) && await bob.$eval('#drawtime', e => e.disabled))
-  ok('host sliders are enabled', await alice.$eval('#rounds', e => !e.disabled))
+  ok('a non-host has no sliders to move, only the values', !(await bob.$('#rounds')) && !(await bob.$('#drawtime')) && (await text(bob, '#rounds-value')) === '3')
+  ok('the host has a Change settings button, a non-host does not', !!(await alice.$('#edit-settings')) && !(await bob.$('#edit-settings')))
 
-  await setRange(alice, '#rounds', 4); await setRange(alice, '#drawtime', 90)
+  await setSetting(alice, 'rounds', 4); await setSetting(alice, 'drawtime', 90)
   ok('slider change reaches other players live', await until(async () => await text(bob, '#rounds-value') === '4' && await text(cara, '#drawtime-value') === '90s'))
   await bob.reload({ waitUntil: 'networkidle0' }); await bob.waitForSelector('#rounds-value')
   ok('settings persist on the server (visible after a refresh)', await text(bob, '#rounds-value') === '4')

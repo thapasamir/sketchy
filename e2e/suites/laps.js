@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer-core')
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const { U, launch } = require('../lib/browser')
 const { fitsScreen } = require('../lib/layout')
+const { setSetting, openSettings } = require('../lib/lobby')
 const click = (p, t) => p.evaluate(t => { const b=[...document.querySelectorAll('button')].find(x => x.textContent.trim()===t); if(!b) throw new Error('no button "'+t+'"'); b.click() }, t)
 const text = (p, sel) => p.$eval(sel, e => e.textContent.trim().replace(/\s+/g,' ')).catch(() => null)
 let fails = 0
@@ -69,8 +70,9 @@ const wrongAccusation = async (imposter, crew) => { await vote(crew[0], crew[1].
 
 
 const hint = p => text(p, '#laps-hint')
-const pressed = (p, v) => p.$eval(`#laps-${v}`, e => e.getAttribute('aria-pressed') === 'true').catch(() => false)
-const setLaps = async (host, v) => { await host.click(`#laps-${v}`); await wait(350) }
+// which laps setting a player is shown (the summary shows it to everyone, host included)
+const pressed = async (p, v) => (await text(p, '#laps-value')) === (v === 'auto' ? 'Auto' : String(v))
+const setLaps = (host, v) => setSetting(host, 'laps', v)
 const bannerLabel = p => p.$eval('#turn-banner .font-stamp', e => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '')
 
 // play a drawing out turn by turn; returns what the banner said at each turn
@@ -103,7 +105,7 @@ async function startGame(all) {
   console.log('=== the lobby control')
   ok('Auto is the default', await pressed(host, 'auto') && !(await pressed(host, 1)) && !(await pressed(host, 2)))
   ok('with 3 players it says 2 laps and 6 turns', /Auto: 2 laps with 3 players, so 6 turns per word/.test(await hint(host)), await hint(host))
-  ok('guests see the same, but cannot change it', /Auto: 2 laps/.test(await hint(bob)) && await bob.$eval('#laps-1', e => e.disabled) && await bob.$eval('#laps-auto', e => e.getAttribute('aria-pressed') === 'true'))
+  ok('guests see the same, as a summary with nothing to change', /Auto: 2 laps/.test(await hint(bob)) && !(await bob.$('#laps-1')) && (await text(bob, '#laps-value')) === 'Auto')
   await click(bob, "I'M READY"); await click(cara, "I'M READY")
   await setLaps(host, 1)
   ok('the host picks 1 lap: everyone sees it chosen', (await Promise.all(all.map(p => pressed(p, 1)))).every(Boolean))
@@ -159,7 +161,10 @@ async function startGame(all) {
   console.log('=== a phone')
   const ph = await player(b, 'Phone', U + '/', { vp: { width: 390, height: 844, deviceScaleFactor: 2, hasTouch: true, isMobile: true } })
   const fit = await fitsScreen(ph)
-  ok('the settings, with the laps control, fit a phone', fit.ok, fit.offenders.join(', '))
+  ok('the settings summary fits a phone', fit.ok, fit.offenders.join(', '))
+  await openSettings(ph)
+  const dialogFit = await fitsScreen(ph)
+  ok('and so does the settings dialog, with the laps control', dialogFit.ok, dialogFit.offenders.join(', '))
   ok('and the three buttons are big enough to tap', await ph.$$eval('#laps-auto, #laps-1, #laps-2', els => els.every(e => e.getBoundingClientRect().height >= 44)))
   await ph.evaluate(() => document.querySelector('#laps-label').scrollIntoView({ block: 'center' })); await ph.screenshot({ path: shots + '/lp-phone.png' })
 

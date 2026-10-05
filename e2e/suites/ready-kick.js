@@ -1,13 +1,13 @@
 const puppeteer = require('puppeteer-core')
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const { U, launch } = require('../lib/browser')
+const { setSetting } = require('../lib/lobby')
 const click = (p, t) => p.evaluate(t => { const b=[...document.querySelectorAll('button')].find(x => x.textContent.trim()===t); if(!b) throw new Error('no button "'+t+'"'); b.click() }, t)
 const has = (p, t) => p.evaluate(t => document.body.innerText.includes(t), t)
 const list = p => p.$eval('#player-list', e => [...e.querySelectorAll('li')].map(l => l.innerText.replace(/\s+/g,' ').trim()))
 const row = (p, name) => p.$eval(`li[data-player="${name}"]`, e => e.innerText.replace(/\s+/g,' ').trim()).catch(() => null)
 const exists = (p, sel) => p.$(sel).then(Boolean)
 const startState = p => p.$eval('#start-button', e => ({ disabled: e.disabled, text: e.innerText.trim() }))
-const setRange = (p, sel, v) => p.$eval(sel, (e, v) => { e.value = String(v); e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})) }, v)
 let fails = 0
 const ok = (n, c, x='') => { if(!c) fails++; console.log(c ? 'PASS' : 'FAIL', n, x) }
 async function until(fn, ms=4000) { const t=Date.now(); while(Date.now()-t<ms){ try{ if(await fn()) return true }catch{} await wait(100) } return false }
@@ -38,7 +38,7 @@ async function player(b, name, url=U+'/') {
   await click(bob, "I'M READY"); await click(cara, "I'M READY")
   ok('host can start once everyone is ready', await until(async () => { const s = await startState(host); return !s.disabled && s.text === 'START GAME' }))
 
-  await setRange(host, '#rounds', 4)
+  await setSetting(host, 'rounds', 4)
   ok('changing a setting clears everyone\'s ready', await until(async () => !(await row(host, 'Bob'))?.includes('(ready)') && !(await row(host, 'Cara'))?.includes('(ready)') && (await startState(host)).disabled))
   await bob.screenshot({ path: shots + '/rk-guest-ready.png' })
   await click(bob, "I'M READY"); await click(cara, "I'M READY")

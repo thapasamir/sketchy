@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer-core')
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const { U, launch } = require('../lib/browser')
+const { setSetting } = require('../lib/lobby')
 const click = (p, t) => p.evaluate(t => { const b=[...document.querySelectorAll('button')].find(x => x.textContent.trim()===t); if(!b) throw new Error('no button "'+t+'"'); b.click() }, t)
 const text = (p, sel) => p.$eval(sel, e => e.textContent.trim().replace(/\s+/g,' ')).catch(() => null)
 let fails = 0
@@ -79,10 +80,10 @@ const wrongAccusation = async (all, imposter, crew) => { await vote(crew[0], cre
   const bob = await player(b, 'Bob', `${U}/room/${code}`); const cara = await player(b, 'Cara', `${U}/room/${code}`)
   const all = [host, bob, cara]
   await wait(600)
-  await host.$eval('#rounds', el => { el.value = '2'; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })) }); await wait(400)
+  await setSetting(host, 'rounds', 2)
   ok('the host sets the game to 2 rounds', (await text(host, '#rounds-value')) === '2')
   ok('...and everyone sees it', (await text(bob, '#rounds-value')) === '2')
-  ok('the setting is now called "Number of rounds"', /Number of rounds/i.test(await allText(host)))
+  ok('the setting is called "Rounds"', /Rounds/i.test(await text(host, 'dl')))
   await click(bob, "I'M READY"); await click(cara, "I'M READY")
   await until(() => host.$eval('#start-button', e => !e.disabled)); await click(host, 'START GAME')
 

@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer-core')
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const { U, launch } = require('../lib/browser')
+const { setSetting } = require('../lib/lobby')
 const click = (p, t) => p.evaluate(t => { const b=[...document.querySelectorAll('button')].find(x => x.textContent.trim()===t); if(!b) throw new Error('no button "'+t+'"'); b.click() }, t)
 const text = (p, sel) => p.$eval(sel, e => e.textContent.trim().replace(/\s+/g,' ')).catch(() => null)
 let fails = 0
@@ -143,7 +144,7 @@ const wrongAccusation = async (imposter, crew) => { await vote(crew[0], crew[1].
     const all = [host, bob, cara]
     for (const p of all) await p.evaluate(() => { window.__hidden = true })   // pretend every tab is in the background
     await wait(500)
-    await host.$eval('#rounds', el => { el.value = '2'; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })) }); await wait(300)
+    await setSetting(host, 'rounds', 2)
     await click(bob, "I'M READY"); await click(cara, "I'M READY")
     await until(() => host.$eval('#start-button', e => !e.disabled)); await click(host, 'START GAME')
     await until(async () => (await Promise.all(all.map(p => p.$('#secret-card')))).every(Boolean), 6000); await wait(250)
