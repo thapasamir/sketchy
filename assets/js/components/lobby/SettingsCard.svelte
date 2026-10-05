@@ -29,7 +29,7 @@
   let missing = $derived(session.minPlayers - session.connectedCount)
 </script>
 
-<Card class="flex flex-col gap-6">
+<Card class="flex flex-col gap-5">
   <div class="flex items-baseline justify-between gap-3">
     <h3 class="font-display text-2xl sm:text-3xl">Settings</h3>
     {#if !isHost}
@@ -38,8 +38,11 @@
   </div>
 
   <div>
-    <label for="rounds" class={labelClass}>Number of rounds</label>
-    <div id="rounds-value" class="mb-2 text-center font-display text-3xl text-riso-blue">{rounds}</div>
+    <!-- the label and its value share a line: a big number above each slider took half the card -->
+    <div class="mb-2 flex items-baseline justify-between gap-3">
+      <label for="rounds" class="font-stamp text-xs uppercase tracking-widest">Number of rounds</label>
+      <span id="rounds-value" class="font-display text-2xl text-riso-blue">{rounds}</span>
+    </div>
     <input
       id="rounds"
       type="range"
@@ -52,8 +55,10 @@
   </div>
 
   <div>
-    <label for="drawtime" class={labelClass}>Seconds per turn</label>
-    <div id="drawtime-value" class="mb-2 text-center font-display text-3xl text-riso-blue">{drawTime}s</div>
+    <div class="mb-2 flex items-baseline justify-between gap-3">
+      <label for="drawtime" class="font-stamp text-xs uppercase tracking-widest">Seconds per turn</label>
+      <span id="drawtime-value" class="font-display text-2xl text-riso-blue">{drawTime}s</span>
+    </div>
     <input
       id="drawtime"
       type="range"

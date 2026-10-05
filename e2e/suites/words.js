@@ -24,7 +24,7 @@ async function player(b, name, url = U + '/') {
   // open the words section
   await host.$eval('#words-settings summary', e => e.click())
   const all = await text(host, '#words-summary')
-  ok('starts on all categories', /all categories/.test(all), all)
+  ok('starts on all categories', /all categories/i.test(all), all)
   await host.click('#difficulty-easy')
   ok('easy pressed', await until(async () => (await host.$eval('#difficulty-easy', e => e.getAttribute('aria-pressed'))) === 'true'))
   const easy = await text(host, '#words-summary')
@@ -42,7 +42,7 @@ async function player(b, name, url = U + '/') {
   await wait(300)
   ok('cannot untick the last category', /1 of 16/.test(await text(host, '#words-summary')))
   await host.click('#categories-all')
-  ok('select all goes back to all', await until(async () => /all categories/.test(await text(host, '#words-summary'))))
+  ok('select all goes back to all', await until(async () => /all categories/i.test(await text(host, '#words-summary'))))
   ok('guest sees it (disabled)', true)
   await b.close()
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED')

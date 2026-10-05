@@ -31,24 +31,23 @@
   </div>
 </div>
 
-<div class="mt-3 flex gap-3">
-  <Button class="min-w-0 flex-1 px-3 py-2.5 font-stamp text-sm" onclick={() => copy(code, 'code')}>
+<!-- Four buttons of one size. Every label is short enough for one line (a longer one wraps, and
+     "Copied!" would then make its button a different height), and the height is fixed anyway. -->
+<div class="mt-3 grid grid-cols-2 gap-3">
+  <Button class="h-12 min-w-0 whitespace-nowrap !px-2 !py-0 font-stamp text-sm" onclick={() => copy(code, 'code')}>
     {copied === 'code' ? 'Copied!' : 'Copy code'}
   </Button>
-  <Button variant="blue" class="min-w-0 flex-1 px-3 py-2.5 font-stamp text-sm" onclick={() => copy(inviteUrl, 'link')}>
-    {copied === 'link' ? 'Copied!' : 'Copy invite link'}
+  <Button variant="blue" class="h-12 min-w-0 whitespace-nowrap !px-2 !py-0 font-stamp text-sm" onclick={() => copy(inviteUrl, 'link')}>
+    {copied === 'link' ? 'Copied!' : 'Copy link'}
   </Button>
-</div>
-
-<div class="mt-3 flex gap-3">
-  <Button id="share-button" variant="yellow" class="min-w-0 flex-1 px-3 py-2.5 font-stamp text-sm" onclick={share}>
+  <Button id="share-button" variant="yellow" class="h-12 min-w-0 whitespace-nowrap !px-2 !py-0 font-stamp text-sm" onclick={share}>
     Share
   </Button>
   <Button
     id="qr-toggle"
     aria-expanded={showQr}
     aria-controls="qr-panel"
-    class="min-w-0 flex-1 px-3 py-2.5 font-stamp text-sm"
+    class="h-12 min-w-0 whitespace-nowrap !px-2 !py-0 font-stamp text-sm"
     onclick={() => (showQr = !showQr)}>
     {showQr ? 'Hide QR code' : 'QR code'}
   </Button>

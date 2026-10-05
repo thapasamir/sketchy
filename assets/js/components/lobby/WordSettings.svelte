@@ -8,7 +8,6 @@
     ['medium', 'Easy + medium'],
     ['all', 'All'],
   ]
-  const labelClass = 'mb-2 block font-stamp text-xs uppercase tracking-widest'
 
   let allNames = $derived(room.words.categories)
   // the server says 'all' or a list; the chips always want a list
@@ -23,11 +22,16 @@
 </script>
 
 <details id="words-settings" class="group">
-  <summary class="{labelClass} cursor-pointer">
-    Words
-    <span id="words-summary" class="normal-case text-riso-muted">
-      · {room.settings.categories === 'all' ? 'all categories' : `${chosen.length} of ${allNames.length} categories`}, {room.words.pool} words
+  <!-- looks like what it is: something you open -->
+  <summary
+    class="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-[3px] border-2 border-riso-line bg-white/60 px-3 py-2 transition hover:border-riso-ink group-open:border-riso-ink [&::-webkit-details-marker]:hidden">
+    <span class="min-w-0">
+      <span class="block font-stamp text-xs uppercase tracking-widest">Words</span>
+      <span id="words-summary" class="block font-stamp text-xs text-riso-muted">
+        {room.settings.categories === 'all' ? 'All categories' : `${chosen.length} of ${allNames.length} categories`} · {room.words.pool} words
+      </span>
     </span>
+    <span aria-hidden="true" class="shrink-0 font-stamp text-sm transition group-open:rotate-180">▾</span>
   </summary>
   <div class="mt-2 grid grid-cols-3 gap-2" role="group" aria-label="How hard the words are">
     {#each DIFFICULTY_CHOICES as [value, label]}
