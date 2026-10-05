@@ -157,6 +157,8 @@ async function drawingOver(all) {
     const h = await player(b, 'Ph1', U + '/', PHONE); const c = await text(h, '#room-code')
     const p2 = await player(b, 'Ph2', `${U}/room/${c}`, PHONE)
     await wait(700)
+    // on a phone the lobby's chat is a bar that opens
+    for (const phone of [h, p2]) if (await phone.$('#chat-toggle')) { await phone.click('#chat-toggle'); await phone.waitForSelector('#chat-panel') }
     await h.evaluate(() => document.querySelector('#chat-panel').scrollIntoView({ block: 'center' }))
     const fit = await fitsScreen(h)
     ok('the chat fits a phone: nothing sticks out sideways', fit.ok, fit.offenders.join(', '))

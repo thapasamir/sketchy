@@ -147,14 +147,27 @@ function runSuite(suite, shots) {
       env: { ...process.env, E2E_URL: url },
     })
     let output = ''
-    child.stdout.on('data', d => (output += d))
-    child.stderr.on('data', d => (output += d))
+    // A suite prints its verdict (ALL PASSED / n FAILED) as its last act. If it then fails to exit
+    // (closing Chrome can hang), give it a moment and stop it: the verdict is what counts.
+    let finished = false
+    let grace
+    const watch = d => {
+      output += d
+      if (!finished && /^(ALL PASSED|\d+ FAILED)/m.test(output)) {
+        finished = true
+        grace = setTimeout(() => child.kill('SIGKILL'), 15000)
+      }
+    }
+    child.stdout.on('data', watch)
+    child.stderr.on('data', watch)
     const timer = setTimeout(() => (output += '\nCRASH timed out after 5 minutes\n', child.kill('SIGKILL')), 300000)
     child.on('exit', code => {
       clearTimeout(timer)
+      clearTimeout(grace)
       const passes = (output.match(/^PASS\b/gm) || []).length
       const failures = output.split('\n').filter(l => /^(FAIL|CRASH)\b/.test(l))
-      resolve({ output, passes, failures, passed: code === 0 && passes > 0 && failures.length === 0, ms: Date.now() - started })
+      const cleanExit = code === 0 || (finished && /^ALL PASSED/m.test(output))
+      resolve({ output, passes, failures, passed: cleanExit && passes > 0 && failures.length === 0, ms: Date.now() - started })
     })
   })
 }

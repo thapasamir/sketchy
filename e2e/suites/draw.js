@@ -124,5 +124,8 @@ async function stroke(p, pts) {
   await all[0].screenshot({ path: shots + '/dr-voting.png' })
 
   const errs = all.flatMap(p => p.errs); ok('no page errors', errs.length === 0, errs.join('|'))
-  console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED'); await b.close()
+  console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED')
+  // closing Chrome sometimes never returns: say so and leave rather than hang the whole run
+  await Promise.race([b.close(), wait(5000)])
+  process.exit(fails ? 1 : 0)
 })().catch(e => { console.log('CRASH', e.stack); process.exit(1) })
