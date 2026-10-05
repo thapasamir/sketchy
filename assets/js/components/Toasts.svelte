@@ -14,7 +14,7 @@
   id="notices"
   role="status"
   aria-live="polite"
-  class="pointer-events-none fixed left-1/2 top-3 z-50 flex w-[min(92vw,26rem)] -translate-x-1/2 flex-col gap-2">
+  class="pointer-events-none fixed left-1/2 top-3 z-50 flex w-[min(92vw,26rem)] -translate-x-1/2 flex-col gap-2 lg:bottom-4 lg:left-4 lg:top-auto lg:w-72 lg:translate-x-0 lg:flex-col-reverse">
   {#each notices as notice (notice.id)}
     <div
       data-notice={notice.kind}

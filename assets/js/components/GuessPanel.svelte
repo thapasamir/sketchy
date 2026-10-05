@@ -42,9 +42,12 @@
         disabled={sent}
         class="min-w-0 flex-1 rounded-[3px] border-2 border-riso-ink bg-white/80 px-3 py-2.5 text-base outline-none focus:border-riso-blue focus:ring-2 focus:ring-riso-blue/30" />
       <Button id="guess-button" variant="yellow" type="submit" class="px-5 py-2.5 text-base" disabled={!text.trim() || sent}>
-        {sent ? 'Sent' : 'Guess'}
+        {sent ? 'Sent' : text.trim() ? 'Guess' : 'Type a guess'}
       </Button>
     </form>
+    <p id="guess-note" class="mt-2 font-stamp text-xs text-riso-muted">
+      {sent ? 'Waiting for the result…' : 'One try. A small spelling slip is forgiven; a different word is not.'}
+    </p>
   {:else}
     <h3 id="guess-wait" class="font-display text-lg">{imposterName} is guessing the word…</h3>
     <p class="mt-1 text-sm text-riso-muted">
