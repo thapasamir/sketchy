@@ -33,12 +33,15 @@ async function player(b, name, url = U + '/') {
   await openSettings(host)
 
   console.log('--- how hard, and which categories')
+  const pool = () => host.$eval('#words-pool', e => Number(e.dataset.pool))
   const all = await text(host, '#words-pool')
+  const allPool = await pool()
   ok('starts on all categories', /all categories/i.test(all), all)
+  ok('and no word count is shown', !/\d+ words/.test(await host.evaluate(() => document.body.innerText)))
   await host.click('#difficulty-easy')
   ok('easy pressed', await until(async () => (await host.$eval('#difficulty-easy', e => e.getAttribute('aria-pressed'))) === 'true'))
-  ok('the pool shrinks for easy', await until(async () => (await text(host, '#words-pool')) !== all), await text(host, '#words-pool'))
-  const names = await host.$$eval('[data-category]', els => els.map(e => e.dataset.category))
+  ok('the pool of words shrinks for easy', await until(async () => (await pool()) < allPool), `${await pool()} of ${allPool}`)
+  const names =await host.$$eval('[data-category]', els => els.map(e => e.dataset.category))
   ok('16 categories shown', names.length === 16, names.length)
   ok('"select all" is not offered while everything is chosen', !(await host.$('#categories-all')))
 

@@ -30,8 +30,9 @@
 <section class="mt-6">
   <div class="mb-1 flex items-center justify-between gap-3">
     <span class="font-stamp text-xs uppercase tracking-widest">Categories</span>
-    <span id="words-pool" class="font-stamp text-xs text-riso-muted">
-      {everything ? 'All categories' : `${chosen.length} of ${allNames.length}`} · {room.words.pool} words
+    <!-- (how many words that leaves is kept in data-pool, for tests; it isn't something to show) -->
+    <span id="words-pool" data-pool={room.words.pool} class="font-stamp text-xs text-riso-muted">
+      {everything ? 'All categories' : `${chosen.length} of ${allNames.length}`}
     </span>
   </div>
   <div class="mb-2 flex items-center justify-between gap-3">

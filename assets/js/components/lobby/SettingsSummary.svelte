@@ -42,12 +42,11 @@
     </div>
     <dd id="words-summary" class="mt-1.5 flex flex-wrap gap-1.5">
       {#if everything}
-        <span class="rounded-full border border-riso-line bg-white/70 px-2.5 py-0.5 font-stamp text-xs">All categories · {room.words.pool} words</span>
+        <span class="rounded-full border border-riso-line bg-white/70 px-2.5 py-0.5 font-stamp text-xs">All categories</span>
       {:else}
         {#each chosen as name}
           <span data-chosen-category={name} class="rounded-full border border-riso-ink bg-riso-yellow/50 px-2.5 py-0.5 font-stamp text-xs">{name}</span>
         {/each}
-        <span class="px-1 py-0.5 font-stamp text-xs text-riso-muted">{room.words.pool} words</span>
       {/if}
     </dd>
   </div>
