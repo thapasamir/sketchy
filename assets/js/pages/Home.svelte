@@ -14,6 +14,12 @@
   let busy = false
   let error = ''
 
+  const STEPS = [
+    ['Get a secret', "Everyone is told the same word. One player isn't.", 'bg-riso-pink text-riso-paper'],
+    ['Draw together', 'Take turns adding to one shared picture.', 'bg-riso-blue text-white'],
+    ['Spot the fake', 'Vote out the imposter before they blend in.', 'bg-riso-yellow text-riso-ink'],
+  ]
+
   // Logo misprint: the two inks slide in opposite directions as the pointer moves
   onMount(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
@@ -68,9 +74,24 @@
     <Button class="sm:min-w-52" on:click={() => dispatch('auth', 'login')}>Log in / Sign up</Button>
   </div>
 
+  <p class="mt-4 font-stamp text-xs uppercase tracking-widest text-riso-muted">Free · 3 to 8 players · phones welcome</p>
+
   {#if error}
     <p class="mt-5 font-stamp text-sm text-riso-stamp" role="alert">{error}</p>
   {/if}
+
+  <!-- the whole game in three lines, so a first visit doesn't need the long rules -->
+  <ol id="home-steps" class="mt-10 grid w-full max-w-2xl gap-4 sm:grid-cols-3">
+    {#each STEPS as [title, text, color], i}
+      <li class="flex items-start gap-3">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-riso-ink font-display {color}">{i + 1}</span>
+        <div class="min-w-0">
+          <h3 class="font-display text-base">{title}</h3>
+          <p class="text-sm text-riso-muted">{text}</p>
+        </div>
+      </li>
+    {/each}
+  </ol>
 
   <button
     type="button"
