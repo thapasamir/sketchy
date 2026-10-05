@@ -10,7 +10,7 @@ defmodule Backend.Avatar do
   The counts here must match the browser's (assets/js/lib/avatar.js; a test compares them).
   """
 
-  @counts %{eyes: 8, mouth: 8, hat: 8}
+  @counts %{eyes: 12, mouth: 12, hat: 16}
 
   @type t :: %{eyes: non_neg_integer(), mouth: non_neg_integer(), hat: non_neg_integer()}
 
