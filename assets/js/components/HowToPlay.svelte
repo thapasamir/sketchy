@@ -83,8 +83,9 @@
     role="dialog"
     aria-modal="true"
     aria-labelledby="how-to-play-title"
-    class="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-[6px] border-2 border-riso-ink bg-riso-paper p-5 shadow-[0_20px_60px_rgb(0_0_0/0.3)] animate-rise sm:rounded-[4px] sm:p-8">
-    <div class="flex items-start justify-between gap-4">
+    class="flex max-h-[92dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-[6px] border-2 border-riso-ink bg-riso-paper shadow-[0_20px_60px_rgb(0_0_0/0.3)] animate-rise sm:rounded-[4px]">
+    <!-- the title and close button stay put; only the steps scroll; "Got it" is always in reach -->
+    <div class="flex shrink-0 items-start justify-between gap-4 border-b-2 border-riso-ink/10 p-5 pb-4 sm:px-8 sm:pt-7">
       <div>
         <h2 id="how-to-play-title" class="font-display text-3xl sm:text-4xl">How to play</h2>
         <p class="mt-1 font-stamp text-sm text-riso-muted">3 to 8 players. One word. One imposter.</p>
@@ -99,7 +100,8 @@
       </button>
     </div>
 
-    <ol class="mt-6 flex flex-col gap-4">
+    <div id="how-to-play-body" class="min-h-0 flex-1 overflow-y-auto p-5 sm:px-8">
+    <ol class="flex flex-col gap-4">
       {#each steps as step, i}
         <li class="flex gap-4">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full border-2 border-riso-ink font-display text-lg {step.color}">
@@ -124,6 +126,10 @@
       </div>
     </div>
 
-    <Button id="how-to-play-done" variant="yellow" class="mt-6 w-full py-3.5 text-lg" on:click={close}>Got it</Button>
+    </div>
+
+    <div class="shrink-0 border-t-2 border-riso-ink/10 p-4 sm:px-8 sm:pb-6">
+      <Button id="how-to-play-done" variant="yellow" class="w-full py-3.5 text-lg" on:click={close}>Got it</Button>
+    </div>
   </div>
 </div>
