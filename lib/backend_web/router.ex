@@ -3,6 +3,10 @@ defmodule BackendWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    # who is calling, and a ceiling on how much of the API one address may use at all
+    # (each endpoint below has its own, tighter limit too: see the controllers)
+    plug BackendWeb.ClientIP
+    plug BackendWeb.Plugs.RateLimit, policy: :api
     plug BackendWeb.Auth
   end
 

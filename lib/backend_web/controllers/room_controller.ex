@@ -3,7 +3,14 @@ defmodule BackendWeb.RoomController do
 
   import Plug.Conn
 
+  alias Backend.RateLimit
   alias Backend.Rooms
+  alias BackendWeb.Plugs.RateLimit, as: Limit
+
+  # Each room is a running process, so how fast one address can make them is limited, as is how
+  # fast it can try to join (see Backend.RateLimit).
+  plug Limit, [policy: :room_create] when action == :create
+  plug Limit, [policy: :room_join] when action == :join
 
   # POST /api/rooms   body: {"name": "Samir"}
   def create(conn, %{"name" => name}) do
@@ -14,7 +21,20 @@ defmodule BackendWeb.RoomController do
 
   # POST /api/rooms/ABCD/join   body: {"name": "Priya"}
   def join(conn, %{"code" => code, "name" => name}) do
-    respond(conn, Rooms.join_room(code, display_name(conn, name)), :ok)
+    ip = conn.assigns[:client_ip] || "unknown"
+
+    # Rooms are found by a four-letter code (about 330,000 of them), so trying codes one after
+    # another is a way to find rooms to disturb. Joining one that doesn't exist is allowed only a few
+    # times, and once the address has used them up it can't try any more for a while.
+    case RateLimit.blocked?(:room_miss, ip) do
+      {:blocked, retry_ms} ->
+        Limit.reject(conn, retry_ms)
+
+      false ->
+        result = Rooms.join_room(code, display_name(conn, name))
+        if result == {:error, :room_not_found}, do: RateLimit.hit(:room_miss, ip)
+        respond(conn, result, :ok)
+    end
   end
 
   def join(conn, _params), do: error(conn, :name_required)
@@ -54,5 +74,6 @@ defmodule BackendWeb.RoomController do
   defp message(:room_full), do: "That room is full"
   defp message(:name_taken), do: "Someone in that room already has that name. Pick another"
   defp message(:game_in_progress), do: "That game has already started"
+  defp message(:server_busy), do: "We're full right now. Please try again in a few minutes"
   defp message(_), do: "Something went wrong, please try again"
 end

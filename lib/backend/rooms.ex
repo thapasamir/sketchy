@@ -20,9 +20,22 @@ defmodule Backend.Rooms do
   Returns `{:ok, %{code: code, player_id: id}}` or `{:error, reason}`.
   """
   def create_room(host_name) do
-    with {:ok, name} <- validate_name(host_name) do
+    with {:ok, name} <- validate_name(host_name),
+         :ok <- check_capacity() do
       start_room(%{id: new_player_id(), name: name}, @max_code_attempts)
     end
+  end
+
+  @doc "How many rooms are running right now."
+  def live_rooms, do: DynamicSupervisor.count_children(Backend.RoomSupervisor).active
+
+  # Every room is a running process holding its drawing in memory, so there is only so much
+  # room for rooms. Past the limit, new ones wait; people already playing are not affected.
+  # (`config :backend, :max_rooms`)
+  defp check_capacity do
+    if live_rooms() >= Application.get_env(:backend, :max_rooms, 300),
+      do: {:error, :server_busy},
+      else: :ok
   end
 
   @doc """
@@ -159,8 +172,19 @@ defmodule Backend.Rooms do
   defp setting_value(:difficulty, "easy"), do: :easy
   defp setting_value(_key, value), do: value
 
+  # A name is shown to everyone, so it must be something you can see: no control characters, no
+  # zero-width or direction-changing ones (which can make a name look like another, or flip the
+  # text around it), and no runs of spaces. (The invisible joiner inside compound emoji stays.)
+  defp unseen,
+    do:
+      ~r/[\p{Cc}\p{Zl}\p{Zp}\x{00AD}\x{200B}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2060}-\x{206F}\x{FEFF}]/u
+
   defp validate_name(name) when is_binary(name) do
-    trimmed = String.trim(name)
+    trimmed =
+      name
+      |> String.replace(unseen(), "")
+      |> String.replace(~r/\s+/u, " ")
+      |> String.trim()
 
     cond do
       trimmed == "" -> {:error, :name_required}

@@ -12,8 +12,11 @@ defmodule BackendWeb.Endpoint do
   ]
 
   # WebSocket for the game channels (see BackendWeb.UserSocket)
+  #
+  # `connect_info` hands the socket the caller's address (see ClientIP), and a frame may be at
+  # most 64KB: the biggest real message is a batch of a few dozen drawing points, a few KB.
   socket "/socket", BackendWeb.UserSocket,
-    websocket: true,
+    websocket: [connect_info: [:peer_data, :x_headers], max_frame_size: 64_000],
     longpoll: false
 
   # Serve at "/" the static files from "priv/static" directory.
@@ -40,9 +43,12 @@ defmodule BackendWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  # The only things sent to this server are short JSON messages (a name, a username and password),
+  # so a body over 16KB is refused instead of read: the default would accept 8MB.
   plug Plug.Parsers,
-    parsers: [:urlencoded, :multipart, :json],
+    parsers: [:urlencoded, :json],
     pass: ["*/*"],
+    length: 16_000,
     json_decoder: Phoenix.json_library()
 
   plug Plug.MethodOverride

@@ -35,6 +35,9 @@ defmodule Backend.Accounts do
 
     case user do
       nil ->
+        # Do the same slow work as for a real account, so the time taken doesn't tell a caller
+        # which usernames exist.
+        Argon2.no_user_verify()
         {:error, :invalid_credentials}
 
       user ->

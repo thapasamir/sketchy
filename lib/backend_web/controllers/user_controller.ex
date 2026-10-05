@@ -4,10 +4,27 @@ defmodule BackendWeb.UserController do
   import Plug.Conn
 
   alias Backend.Accounts
+  alias Backend.RateLimit
   alias BackendWeb.Auth
+  alias BackendWeb.Plugs.RateLimit, as: Limit
+
+  # Making a user costs a database row (and, for an account, a slow password hash), so each way of
+  # making one is limited per address, and again across everybody. See Backend.RateLimit.
+  plug Limit, [policy: :guest] when action == :create_guest
+  plug Limit, [policy: :register] when action == :register
+  plug Limit, [policy: :login] when action == :login
 
   # POST /api/users/guest
   def create_guest(conn, _params) do
+    # one more limit, across everybody, so many addresses together can't flood the table either
+    with :ok <- RateLimit.hit(:guest_all, :everyone) do
+      do_create_guest(conn)
+    else
+      {:error, retry_ms} -> Limit.reject(conn, retry_ms)
+    end
+  end
+
+  defp do_create_guest(conn) do
     {:ok, %{user_id: user_id}} = Accounts.create_guest_user()
     user = Accounts.get_user(user_id)
 
@@ -24,29 +41,40 @@ defmodule BackendWeb.UserController do
         conn,
         %{"username" => _username, "email" => _email, "password" => _password} = params
       ) do
-    case Accounts.register_user(params) do
-      {:ok, user} ->
-        conn
-        |> put_status(:created)
-        |> json(session(user))
+    with :ok <- RateLimit.hit(:register_all, :everyone) do
+      case Accounts.register_user(params) do
+        {:ok, user} ->
+          conn
+          |> put_status(:created)
+          |> json(session(user))
 
-      {:error, changeset} ->
-        error(conn, changeset_errors(changeset))
+        {:error, changeset} ->
+          error(conn, changeset_errors(changeset))
+      end
+    else
+      {:error, retry_ms} -> Limit.reject(conn, retry_ms)
     end
   end
 
   def register(conn, _params), do: error(conn, :invalid_params)
 
   # POST /api/users/login   body: {"username": "...", "password": "..."}
-  def login(conn, %{"username" => username, "password" => password}) do
-    case Accounts.verify_login(username, password) do
-      {:ok, user} ->
-        conn
-        |> put_status(:ok)
-        |> json(session(user))
+  def login(conn, %{"username" => username, "password" => password})
+      when is_binary(username) and is_binary(password) do
+    # per account as well as per address: guessing one person's password from many addresses
+    # is slow too. (Names are compared without regard to case, like the lookup does.)
+    with :ok <- RateLimit.hit(:login_user, String.downcase(username)) do
+      case Accounts.verify_login(username, password) do
+        {:ok, user} ->
+          conn
+          |> put_status(:ok)
+          |> json(session(user))
 
-      {:error, :invalid_credentials} ->
-        error(conn, :invalid_credentials)
+        {:error, :invalid_credentials} ->
+          error(conn, :invalid_credentials)
+      end
+    else
+      {:error, retry_ms} -> Limit.reject(conn, retry_ms)
     end
   end
 
