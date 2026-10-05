@@ -27,7 +27,7 @@ async function player(b, name, url = U + '/', vp = { width: 1200, height: 950 })
 
 const oscillators = p => p.evaluate(() => window.__audio.oscillators)
 const logText = p => p.$eval('#chat-log', e => e.innerText).catch(() => null)
-const lines = p => p.$$eval('#chat-log [data-chat-from]', els => els.map(e => ({ from: e.dataset.chatFrom, text: e.innerText.replace(/\s+/g, ' ').trim() }))).catch(() => [])
+const lines = p => p.$$eval('#chat-log [data-chat-from]', els => els.map(e => ({ from: e.dataset.chatFrom, mine: e.dataset.chatMine === 'true', text: e.innerText.replace(/\s+/g, ' ').trim() }))).catch(() => [])
 const hasChat = p => p.$('#chat-panel').then(Boolean)
 async function say(p, msg) { await p.click('#chat-input'); await p.type('#chat-input', msg); await p.keyboard.press('Enter') }
 const myTurn = p => p.$eval('#turn-banner', e => e.dataset.myTurn === 'true').catch(() => false)
@@ -61,7 +61,9 @@ async function drawingOver(all) {
 
   await say(host, 'hello everyone')
   ok('everyone sees what Host said, under Host\'s name', await until(async () => (await Promise.all([bob, cara].map(async p => (await lines(p)).some(l => l.from === 'Host' && /hello everyone/.test(l.text))))).every(Boolean), 3000))
-  ok('Host sees it as "You"', await until(async () => /You\s+hello everyone/.test((await lines(host))[0]?.text || ''), 3000), JSON.stringify(await lines(host)))
+  ok('Host sees it as their own, on the right', await until(async () => { const l = (await lines(host))[0]; return !!l && l.mine && /hello everyone/.test(l.text) }, 3000), JSON.stringify(await lines(host)))
+  ok('and others see it as someone else\'s', (await lines(bob)).some(l => !l.mine && l.from === 'Host'))
+  ok('your own message is blue, and the other side\'s is white', await host.$eval('#chat-log [data-chat-mine="true"] span.bg-riso-blue', e => !!e) && await bob.$eval('#chat-log [data-chat-mine="false"] span.bg-white', e => !!e))
   ok('and the box is cleared after sending', (await host.$eval('#chat-input', e => e.value)) === '')
 
   console.log('--- sounds')
