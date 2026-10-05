@@ -19,10 +19,13 @@ defmodule Backend.Rooms do
 
   Returns `{:ok, %{code: code, player_id: id}}` or `{:error, reason}`.
   """
-  def create_room(host_name) do
+  def create_room(host_name, avatar \\ nil) do
     with {:ok, name} <- validate_name(host_name),
          :ok <- check_capacity() do
-      start_room(%{id: new_player_id(), name: name}, @max_code_attempts)
+      start_room(
+        %{id: new_player_id(), name: name, avatar: Backend.Avatar.parse_or_nil(avatar)},
+        @max_code_attempts
+      )
     end
   end
 
@@ -44,10 +47,16 @@ defmodule Backend.Rooms do
   Returns `{:ok, %{code: code, player_id: id}}` or `{:error, reason}` where reason is one of
   `:name_required`, `:name_too_long`, `:room_not_found`, `:room_full`, `:name_taken`, `:game_in_progress`.
   """
-  def join_room(code, name) do
+  def join_room(code, name, avatar \\ nil) do
     with {:ok, name} <- validate_name(name),
          player_id = new_player_id(),
-         {:ok, room} <- RoomServer.join(normalize_code(code), player_id, name) do
+         {:ok, room} <-
+           RoomServer.join(
+             normalize_code(code),
+             player_id,
+             name,
+             Backend.Avatar.parse_or_nil(avatar)
+           ) do
       {:ok, %{code: room.code, player_id: player_id}}
     end
   end
@@ -74,6 +83,10 @@ defmodule Backend.Rooms do
 
     RoomServer.update_settings(normalize_code(code), player_id, changes)
   end
+
+  @doc "A member changes their face. `face` comes straight from the browser."
+  def set_avatar(code, player_id, face),
+    do: RoomServer.set_avatar(normalize_code(code), player_id, face)
 
   @doc "A non-host player toggles ready."
   def set_ready(code, player_id, ready?),

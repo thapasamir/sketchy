@@ -150,6 +150,12 @@ defmodule BackendWeb.RoomChannel do
   defp dispatch("chat", _params, socket),
     do: {:reply, {:error, %{reason: "empty"}}, socket}
 
+  defp dispatch("set_avatar", face, socket) when is_map(face) do
+    socket.assigns.room_code
+    |> Rooms.set_avatar(socket.assigns.player_id, face)
+    |> to_reply(socket)
+  end
+
   defp dispatch("react", %{"id" => id}, socket) do
     socket.assigns.room_code
     |> Rooms.react(socket.assigns.player_id, id)

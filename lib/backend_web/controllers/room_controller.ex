@@ -13,14 +13,14 @@ defmodule BackendWeb.RoomController do
   plug Limit, [policy: :room_join] when action == :join
 
   # POST /api/rooms   body: {"name": "Samir"}
-  def create(conn, %{"name" => name}) do
-    respond(conn, Rooms.create_room(display_name(conn, name)), :created)
+  def create(conn, %{"name" => name} = params) do
+    respond(conn, Rooms.create_room(display_name(conn, name), params["avatar"]), :created)
   end
 
   def create(conn, _params), do: error(conn, :name_required)
 
   # POST /api/rooms/ABCD/join   body: {"name": "Priya"}
-  def join(conn, %{"code" => code, "name" => name}) do
+  def join(conn, %{"code" => code, "name" => name} = params) do
     ip = conn.assigns[:client_ip] || "unknown"
 
     # Rooms are found by a four-letter code (about 330,000 of them), so trying codes one after
@@ -31,7 +31,7 @@ defmodule BackendWeb.RoomController do
         Limit.reject(conn, retry_ms)
 
       false ->
-        result = Rooms.join_room(code, display_name(conn, name))
+        result = Rooms.join_room(code, display_name(conn, name), params["avatar"])
         if result == {:error, :room_not_found}, do: RateLimit.hit(:room_miss, ip)
         respond(conn, result, :ok)
     end

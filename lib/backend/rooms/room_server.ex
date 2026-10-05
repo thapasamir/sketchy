@@ -29,7 +29,10 @@ defmodule Backend.Rooms.RoomServer do
   end
 
   def get_state(code), do: call(code, :get_state)
-  def join(code, player_id, name), do: call(code, {:join, player_id, name})
+  def join(code, player_id, name, avatar \\ nil), do: call(code, {:join, player_id, name, avatar})
+
+  @doc "A member changes their face (see `Backend.Avatar`)."
+  def set_avatar(code, player_id, face), do: call(code, {:set_avatar, player_id, face})
 
   @doc "Register `pid` (a channel process) as one of `player_id`'s live connections."
   def connect(code, player_id, pid), do: call(code, {:connect, player_id, pid})
@@ -119,7 +122,7 @@ defmodule Backend.Rooms.RoomServer do
     code = Keyword.fetch!(opts, :code)
     host = Keyword.fetch!(opts, :host)
 
-    room = code |> Room.new(host.id) |> Room.add_player(host.id, host.name)
+    room = code |> Room.new(host.id) |> Room.add_player(host.id, host.name, avatar: host[:avatar])
     room = %{room | reveal_ms: Keyword.fetch!(opts, :reveal_ms)}
 
     state = %{
@@ -152,8 +155,12 @@ defmodule Backend.Rooms.RoomServer do
   # Check-and-add happens inside ONE message, so two people grabbing the last seat or the same
   # name at the same moment are handled one after the other. The second one is told no.
   # Joining reserves a seat quietly; everyone is told when that player's channel connects.
-  def handle_call({:join, player_id, name}, _from, state) do
-    case Room.join(state.room, player_id, name) do
+  def handle_call({:set_avatar, player_id, face}, _from, state) do
+    apply_change(state, Room.set_avatar(state.room, player_id, face))
+  end
+
+  def handle_call({:join, player_id, name, avatar}, _from, state) do
+    case Room.join(state.room, player_id, name, avatar) do
       {:ok, room} ->
         {:reply, {:ok, room}, state |> put_room(room) |> schedule_expiry(player_id)}
 

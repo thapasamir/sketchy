@@ -83,6 +83,8 @@ defmodule Backend.Rooms.Room do
       connected?: false,
       ready?: false,
       spectator?: Keyword.get(opts, :spectator, false),
+      # their face: the one they chose if it checks out, else one made from their id
+      avatar: Keyword.get(opts, :avatar) || Backend.Avatar.from_seed(player_id),
       joined_at: DateTime.utc_now()
     }
 
@@ -90,16 +92,31 @@ defmodule Backend.Rooms.Room do
   end
 
   @doc """
+  A member changes their face (any time: it is only how they look). `face` is as `Backend.Avatar`
+  checks it.
+  """
+  def set_avatar(%__MODULE__{} = room, player_id, face) do
+    with :ok <- check_member(room, player_id),
+         {:ok, face} <- Backend.Avatar.parse(face) |> avatar_result() do
+      player = %{room.players[player_id] | avatar: face}
+      {:ok, %{room | players: Map.put(room.players, player_id, player)}}
+    end
+  end
+
+  defp avatar_result({:ok, face}), do: {:ok, face}
+  defp avatar_result(:error), do: {:error, :invalid_avatar}
+
+  @doc """
   The rules for joining, kept pure so they are trivial to test.
   Returns `{:ok, room}` or `{:error, reason}`. Joining after the game has begun is allowed: you
   watch until the next round starts.
   """
-  def join(%__MODULE__{} = room, player_id, name) do
+  def join(%__MODULE__{} = room, player_id, name, avatar \\ nil) do
     cond do
       player_count(room) >= @max_players -> {:error, :room_full}
       name_taken?(room, name) -> {:error, :name_taken}
-      room.phase == :lobby -> {:ok, add_player(room, player_id, name)}
-      true -> {:ok, add_player(room, player_id, name, spectator: true)}
+      room.phase == :lobby -> {:ok, add_player(room, player_id, name, avatar: avatar)}
+      true -> {:ok, add_player(room, player_id, name, spectator: true, avatar: avatar)}
     end
   end
 
@@ -672,6 +689,7 @@ defmodule Backend.Rooms.Room do
           spectator: &1.spectator?,
           color: colors[&1.id],
           shape: shape_for(colors[&1.id]),
+          avatar: &1.avatar,
           score: Map.get(room.scores, &1.id, 0)
         }
       )
