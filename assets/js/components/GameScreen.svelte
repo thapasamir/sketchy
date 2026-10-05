@@ -10,8 +10,9 @@
   import Marker from './Marker.svelte'
   import ReactionBar from './ReactionBar.svelte'
   import ReactionLayer from './ReactionLayer.svelte'
+  import RevealStamp from './RevealStamp.svelte'
   import { play } from '../lib/sound.js'
-  import { tickFor } from '../lib/cues.js'
+  import { tickFor, TIMING } from '../lib/cues.js'
 
   export let room
   export let secret
@@ -77,7 +78,27 @@
   $: looking = phase === 'voting' || phase === 'guess' || phase === 'result'
   $: if (!looking) focus = null
   $: contestants = room.players.filter(p => !p.spectator && p.color)
-  const toggleFocus = id => (focus = focus === id || id === null ? null : id)
+  // Choosing someone yourself takes over from the reveal below.
+  const toggleFocus = id => {
+    spotlightTimers.forEach(clearTimeout)
+    focus = focus === id || id === null ? null : id
+  }
+
+  // At the result, as the imposter's name lands, their lines are picked out for a few seconds and
+  // everyone else's fade, then it all comes back. (Only if they drew something.)
+  const SPOTLIGHT_MS = 3200
+  let spotlightTimers = []
+  let spotlitRound = null
+  $: if (phase === 'result' && result?.imposter_id && spotlitRound !== room.round) {
+    spotlitRound = room.round
+    const id = result.imposter_id
+    if (store.strokes.some(s => s.player_id === id)) {
+      spotlightTimers = [
+        setTimeout(() => (focus = id), TIMING.nameImpact),
+        setTimeout(() => focus === id && (focus = null), TIMING.nameImpact + SPOTLIGHT_MS),
+      ]
+    }
+  }
 
   // The server sends how long is left when the turn changes; we count down from there. Counting
   // locally is smooth, and it needs no shared clock between the browser and the server.
@@ -172,6 +193,7 @@
   onMount(() => (ticker = setInterval(() => (now = performance.now()), 100)))
   onDestroy(() => {
     clearInterval(ticker)
+    spotlightTimers.forEach(clearTimeout)
     if (typeof document !== 'undefined') document.body.style.overflow = ''
   })
 
@@ -311,6 +333,9 @@
           {focus}
           players={looking ? contestants : null}
           on:pick={e => toggleFocus(e.detail)} />
+        {#if phase === 'result' && result?.imposter_id}
+          {#key room.round}<RevealStamp {store} imposterId={result.imposter_id} />{/key}
+        {/if}
         <ReactionLayer {reactions} />
 
         {#if !immersive}
