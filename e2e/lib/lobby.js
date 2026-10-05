@@ -24,13 +24,14 @@ async function setSetting(page, setting, value) {
   await settled(350)
 }
 
-// The lobby's player rows as text ("Samir (Host) (You)", "Priya Remove"), without the coloured
-// marker in front of each name (its initial letter would otherwise be read as part of the text).
+// The lobby's player rows as text ("Samir (Host) (You)", "Priya Remove"), without the picture in
+// front of each name: the marker (its initial letter would be read as part of the text) and, on
+// your own row, the button around it with its little pencil.
 const playerRows = page =>
   page.$eval('#player-list', list =>
     [...list.querySelectorAll('li')].map(li => {
       const copy = li.cloneNode(true)
-      copy.querySelectorAll('[data-marker]').forEach(marker => marker.remove())
+      copy.querySelectorAll('[data-marker], #edit-avatar').forEach(picture => picture.remove())
       return copy.textContent.replace(/\s+/g, ' ').trim()
     })
   )
