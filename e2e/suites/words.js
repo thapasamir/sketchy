@@ -36,22 +36,34 @@ async function player(b, name, url = U + '/') {
   const pool = () => host.$eval('#words-pool', e => Number(e.dataset.pool))
   const all = await text(host, '#words-pool')
   const allPool = await pool()
-  ok('starts on all categories', /all categories/i.test(all), all)
+  ok('starts on all categories', /^all\s+(\d+\s+)?categories/i.test(all), all)
   ok('and no word count is shown', !/\d+ words/.test(await host.evaluate(() => document.body.innerText)))
   await host.click('#difficulty-easy')
   ok('easy pressed', await until(async () => (await host.$eval('#difficulty-easy', e => e.getAttribute('aria-pressed'))) === 'true'))
   ok('the pool of words shrinks for easy', await until(async () => (await pool()) < allPool), `${await pool()} of ${allPool}`)
-  const names =await host.$$eval('[data-category]', els => els.map(e => e.dataset.category))
-  ok('16 categories shown', names.length === 16, names.length)
+
+  console.log('--- what it adds up to')
+  const lengthNow = await text(host, '#game-length')
+  ok('the dialog says how long the game takes', /up to about \d+ minutes?/.test(lengthNow), lengthNow)
+  await host.click('#rounds-4')
+  ok('and it grows with more rounds', await until(async () => parseInt((await text(host, '#game-length')).match(/about (\d+)/)[1]) > parseInt(lengthNow.match(/about (\d+)/)[1])))
+  await host.click('#rounds-3')
+
+  console.log('--- the categories are folded away until you ask')
+  ok('the list is folded by default', !(await host.$eval('#categories-section', e => e.open)))
+  await host.click('#categories-section summary')
+  ok('and opens when asked', await host.$eval('#categories-section', e => e.open))
+  const names = await host.$$eval('[data-category]', els => els.map(e => e.dataset.category))
+  ok('with all 16 categories in it', names.length === 16, names.length)
   ok('"select all" is not offered while everything is chosen', !(await host.$('#categories-all')))
 
   // tapping one while everything is chosen means "just this one"
   await host.click('[data-category="Animals"]')
-  ok('tapping one picks only that one', await until(async () => /1 of 16/.test(await text(host, '#words-pool'))), await text(host, '#words-pool'))
+  ok('tapping one picks only that one, and the summary names it', await until(async () => (await text(host, '#words-pool')) === 'Animals'), await text(host, '#words-pool'))
   ok('and it is the one that is marked', (await host.$eval('[data-category="Animals"]', e => e.getAttribute('aria-pressed'))) === 'true' && (await host.$eval('[data-category="Food"]', e => e.getAttribute('aria-pressed'))) === 'false')
   // after that, tapping adds
   await host.click('[data-category="Food"]')
-  ok('tapping another adds it', await until(async () => /2 of 16/.test(await text(host, '#words-pool'))))
+  ok('tapping another adds it', await until(async () => (await text(host, '#words-pool')) === 'Animals and Food'), await text(host, '#words-pool'))
 
   console.log('--- what a guest sees')
   const guestSees = async () => guest.$$eval('[data-chosen-category]', els => els.map(e => e.dataset.chosenCategory).sort().join(','))
@@ -63,11 +75,11 @@ async function player(b, name, url = U + '/') {
 
   // removing one is fine; the last one cannot be removed
   await host.click('[data-category="Food"]')
-  ok('tapping a chosen one removes it', await until(async () => /1 of 16/.test(await text(host, '#words-pool'))))
+  ok('tapping a chosen one removes it', await until(async () => (await text(host, '#words-pool')) === 'Animals'))
   await host.click('[data-category="Animals"]'); await wait(300)
-  ok('the last category cannot be removed', /1 of 16/.test(await text(host, '#words-pool')))
+  ok('the last category cannot be removed', (await text(host, '#words-pool')) === 'Animals')
   await host.click('#categories-all')
-  ok('select all goes back to all', await until(async () => /all categories/i.test(await text(host, '#words-pool'))))
+  ok('select all goes back to all', await until(async () => /^all\s+(\d+\s+)?categories/i.test(await text(host, '#words-pool'))))
   ok('and the guest sees all categories again', await until(async () => /All categories/.test(await text(guest, '#words-summary'))))
 
   await closeSettings(host)
