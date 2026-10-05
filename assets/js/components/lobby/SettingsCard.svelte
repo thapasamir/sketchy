@@ -1,105 +1,33 @@
 <script>
   import Button from '../Button.svelte'
   import Card from '../Card.svelte'
-  import WordSettings from './WordSettings.svelte'
+  import SettingsModal from './SettingsModal.svelte'
+  import SettingsSummary from './SettingsSummary.svelte'
 
-  // The game's settings and the button that moves things along: "start" for the host, "I'm ready"
-  // for everyone else. Everyone sees the settings; only the host can change them.
+  // What the game will be like, and the button that moves things along. Everyone sees the same
+  // summary. The host also gets "Change settings" (which opens the controls in a dialog) and the
+  // "start" button; everyone else gets "I'm ready".
   let { session } = $props()
-
-  const LAP_CHOICES = [
-    ['auto', 'Auto'],
-    [1, '1'],
-    [2, '2'],
-  ]
-  const labelClass = 'mb-2 block font-stamp text-xs uppercase tracking-widest'
 
   let room = $derived(session.room)
   let isHost = $derived(session.isHost)
   let players = $derived(session.players)
-
-  // The sliders show whatever the server says; they follow the host's finger until it does.
-  let rounds = $derived(room.settings.rounds)
-  let drawTime = $derived(room.settings.draw_time)
-  let laps = $derived(room.settings.laps)
-  let turnsPerWord = $derived(players.length * (room.laps_now ?? 1))
-
-  const saveSliders = () => session.updateSettings({ rounds: Number(rounds), draw_time: Number(drawTime) })
-
+  let hostName = $derived(players.find(p => p.id === room.host_id)?.name ?? 'The host')
   let missing = $derived(session.minPlayers - session.connectedCount)
+
+  let editing = $state(false)
 </script>
 
 <Card class="flex flex-col gap-5">
-  <div class="flex items-baseline justify-between gap-3">
-    <h3 class="font-display text-2xl sm:text-3xl">Settings</h3>
-    {#if !isHost}
-      <span class="font-stamp text-xs uppercase tracking-widest text-riso-muted">Host decides</span>
-    {/if}
-  </div>
+  <h3 class="font-display text-2xl sm:text-3xl">Settings</h3>
 
-  <div>
-    <!-- the label and its value share a line: a big number above each slider took half the card -->
-    <div class="mb-2 flex items-baseline justify-between gap-3">
-      <label for="rounds" class="font-stamp text-xs uppercase tracking-widest">Number of rounds</label>
-      <span id="rounds-value" class="font-display text-2xl text-riso-blue">{rounds}</span>
-    </div>
-    <input
-      id="rounds"
-      type="range"
-      class="riso-slider disabled:opacity-60"
-      min="2"
-      max="4"
-      disabled={!isHost}
-      bind:value={rounds}
-      onchange={saveSliders} />
-  </div>
+  <SettingsSummary {room} {players} {hostName} {isHost} />
 
-  <div>
-    <div class="mb-2 flex items-baseline justify-between gap-3">
-      <label for="drawtime" class="font-stamp text-xs uppercase tracking-widest">Seconds per turn</label>
-      <span id="drawtime-value" class="font-display text-2xl text-riso-blue">{drawTime}s</span>
-    </div>
-    <input
-      id="drawtime"
-      type="range"
-      class="riso-slider disabled:opacity-60"
-      min="30"
-      max="90"
-      step="10"
-      disabled={!isHost}
-      bind:value={drawTime}
-      onchange={saveSliders} />
-  </div>
+  {#if isHost}
+    <Button id="edit-settings" class="w-full py-2.5 text-base" onclick={() => (editing = true)}>Change settings</Button>
+  {/if}
 
-  <div>
-    <div id="laps-label" class={labelClass}>Laps per word</div>
-    <div class="grid grid-cols-3 gap-2" role="group" aria-labelledby="laps-label">
-      {#each LAP_CHOICES as [value, label]}
-        <button
-          type="button"
-          id="laps-{value}"
-          aria-pressed={laps === value}
-          disabled={!isHost}
-          onclick={() => session.updateSettings({ laps: value })}
-          class="min-h-11 cursor-pointer rounded-[3px] border-2 px-3 py-2 font-stamp text-sm transition disabled:cursor-default {laps === value
-            ? 'border-riso-ink bg-riso-yellow'
-            : 'border-riso-line bg-white/60 enabled:hover:border-riso-ink'} {!isHost && laps !== value ? 'opacity-60' : ''}">
-          {label}
-        </button>
-      {/each}
-    </div>
-    <p id="laps-hint" class="mt-2 font-stamp text-xs text-riso-muted">
-      {#if laps === 'auto'}
-        Auto: {room.laps_now} {room.laps_now === 1 ? 'lap' : 'laps'} with {players.length} {players.length === 1 ? 'player' : 'players'}, so {turnsPerWord} {turnsPerWord === 1 ? 'turn' : 'turns'} per word.
-      {:else}
-        Everyone draws {laps === 1 ? 'once' : 'twice'} per word, so {turnsPerWord} {turnsPerWord === 1 ? 'turn' : 'turns'}.
-      {/if}
-    </p>
-  </div>
-
-  <WordSettings {room} {isHost} update={session.updateSettings} />
-
-  {#if session.actionError}
+  {#if session.actionError && !editing}
     <p class="font-stamp text-sm text-riso-stamp" role="alert">{session.actionError}</p>
   {/if}
 
@@ -137,3 +65,7 @@
     </div>
   {/if}
 </Card>
+
+{#if editing}
+  <SettingsModal {session} onclose={() => (editing = false)} />
+{/if}

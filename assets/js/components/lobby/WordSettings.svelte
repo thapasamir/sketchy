@@ -1,7 +1,10 @@
 <script>
-  // Which words come up: how hard they may be, and which categories. Everyone sees the choice;
-  // only the host can change it. `update(changes)` sends a change to the server.
-  let { room, isHost, update } = $props()
+  import Segmented from '../Segmented.svelte'
+  import { chosenCategories, tapCategory } from '../../lib/categories.js'
+
+  // The host's choice of words, inside the settings dialog: how hard they may be, and which
+  // categories. `update(changes)` sends a change to the server.
+  let { room, update } = $props()
 
   const DIFFICULTY_CHOICES = [
     ['easy', 'Easy only'],
@@ -10,62 +13,54 @@
   ]
 
   let allNames = $derived(room.words.categories)
-  // the server says 'all' or a list; the chips always want a list
-  let chosen = $derived(room.settings.categories === 'all' ? allNames : room.settings.categories)
-  let difficulty = $derived(room.settings.difficulty)
+  let everything = $derived(room.settings.categories === 'all')
+  let chosen = $derived(chosenCategories(room.settings.categories, allNames))
 
-  function toggleCategory(name) {
-    const next = chosen.includes(name) ? chosen.filter(c => c !== name) : [...chosen, name]
-    if (next.length === 0) return // at least one category stays chosen
-    update({ categories: next.length === allNames.length ? 'all' : next })
+  function pick(name) {
+    const next = tapCategory(room.settings.categories, allNames, name)
+    if (next !== null) update({ categories: next })
   }
 </script>
 
-<details id="words-settings" class="group">
-  <!-- looks like what it is: something you open -->
-  <summary
-    class="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-[3px] border-2 border-riso-line bg-white/60 px-3 py-2 transition hover:border-riso-ink group-open:border-riso-ink [&::-webkit-details-marker]:hidden">
-    <span class="min-w-0">
-      <span class="block font-stamp text-xs uppercase tracking-widest">Words</span>
-      <span id="words-summary" class="block font-stamp text-xs text-riso-muted">
-        {room.settings.categories === 'all' ? 'All categories' : `${chosen.length} of ${allNames.length} categories`} · {room.words.pool} words
-      </span>
+<section>
+  <div class="mb-2 font-stamp text-xs uppercase tracking-widest">How hard are the words</div>
+  <Segmented id="difficulty" label="How hard the words are" options={DIFFICULTY_CHOICES} value={room.settings.difficulty} onselect={value => update({ difficulty: value })} />
+</section>
+
+<section class="mt-6">
+  <div class="mb-1 flex items-center justify-between gap-3">
+    <span class="font-stamp text-xs uppercase tracking-widest">Categories</span>
+    <span id="words-pool" class="font-stamp text-xs text-riso-muted">
+      {everything ? 'All categories' : `${chosen.length} of ${allNames.length}`} · {room.words.pool} words
     </span>
-    <span aria-hidden="true" class="shrink-0 font-stamp text-sm transition group-open:rotate-180">▾</span>
-  </summary>
-  <div class="mt-2 grid grid-cols-3 gap-2" role="group" aria-label="How hard the words are">
-    {#each DIFFICULTY_CHOICES as [value, label]}
-      <button
-        type="button"
-        id="difficulty-{value}"
-        aria-pressed={difficulty === value}
-        disabled={!isHost}
-        onclick={() => update({ difficulty: value })}
-        class="min-h-11 cursor-pointer rounded-[3px] border-2 px-2 py-2 font-stamp text-xs transition disabled:cursor-default {difficulty === value
-          ? 'border-riso-ink bg-riso-yellow'
-          : 'border-riso-line bg-white/60 enabled:hover:border-riso-ink'} {!isHost && difficulty !== value ? 'opacity-60' : ''}">
-        {label}
-      </button>
-    {/each}
   </div>
-  <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Categories">
+  <div class="mb-2 flex items-center justify-between gap-3">
+    <p id="categories-hint" class="font-stamp text-xs text-riso-muted">
+      {everything ? 'Tap one to play only that, then tap more to add.' : 'Tap to add or remove a category.'}
+    </p>
+    {#if !everything}
+      <button type="button" id="categories-all" onclick={() => update({ categories: 'all' })} class="shrink-0 cursor-pointer font-stamp text-xs underline">
+        Select all
+      </button>
+    {/if}
+  </div>
+
+  <div class="grid grid-cols-2 gap-2" role="group" aria-label="Categories">
     {#each allNames as name}
+      {@const on = chosen.includes(name)}
       <button
         type="button"
         data-category={name}
-        aria-pressed={chosen.includes(name)}
-        disabled={!isHost}
-        onclick={() => toggleCategory(name)}
-        class="min-h-9 cursor-pointer rounded-full border-2 px-3 py-1 font-stamp text-xs transition disabled:cursor-default {chosen.includes(name)
-          ? 'border-riso-ink bg-riso-yellow'
-          : 'border-riso-line bg-white/60 enabled:hover:border-riso-ink'} {!isHost && !chosen.includes(name) ? 'opacity-60' : ''}">
-        {chosen.includes(name) ? '✓ ' : ''}{name}
+        aria-pressed={on}
+        onclick={() => pick(name)}
+        class="flex min-h-11 cursor-pointer items-center gap-2 rounded-[3px] border-2 px-3 py-1.5 text-left transition active:scale-[0.97] {everything
+          ? 'border-riso-line bg-riso-yellow/25 hover:border-riso-ink'
+          : on
+            ? 'border-riso-ink bg-riso-yellow'
+            : 'border-riso-line bg-white/60 text-riso-muted hover:border-riso-ink'}">
+        <span class="min-w-0 flex-1 font-stamp text-xs leading-tight">{name}</span>
+        {#if on && !everything}<span aria-hidden="true" class="shrink-0 text-sm">✓</span>{/if}
       </button>
     {/each}
   </div>
-  {#if isHost && room.settings.categories !== 'all'}
-    <button type="button" id="categories-all" onclick={() => update({ categories: 'all' })} class="mt-2 cursor-pointer font-stamp text-xs underline">
-      Select all
-    </button>
-  {/if}
-</details>
+</section>
