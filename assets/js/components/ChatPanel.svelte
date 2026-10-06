@@ -16,6 +16,8 @@
   // sends one message; resolves true if the room accepted it (so the box is only cleared then)
   export let send = async () => true
   export let error = ''
+  // off when something else above it already says "Chat" (the phone's fold-down bar)
+  export let heading = true
 
   const MAX = 200
 
@@ -50,7 +52,9 @@
 </script>
 
 <Card id="chat-panel" class="flex flex-col !p-4 {fill ? 'lg:min-h-[13rem] lg:flex-1 lg:!p-3' : ''} {className}">
-  <h3 class="mb-2 font-display text-lg lg:mb-2">Chat</h3>
+  {#if heading}
+    <h3 class="mb-2 font-display text-lg lg:mb-2">Chat</h3>
+  {/if}
 
   <!-- the conversation: yours on the right in blue, everyone else's on the left. Messages from one
        person in a row share a name (above the first), a marker (by the last) and a time (under it) -->
@@ -61,7 +65,7 @@
     role="log"
     aria-live="polite"
     aria-label="Chat messages"
-    class="mb-3 flex h-44 flex-col overflow-y-auto rounded-[3px] bg-riso-blue/5 px-3 py-3 sm:h-52 {fill ? 'lg:h-auto lg:min-h-0 lg:flex-1' : ''}">
+    class="mb-3 flex h-44 flex-col overflow-y-auto rounded-[3px] border-2 border-dashed border-riso-line bg-white/50 px-3 py-3 sm:h-52 {fill ? 'lg:h-auto lg:min-h-0 lg:flex-1' : ''}">
     {#each rows as message (message.id + ':' + message.at)}
       {@const mine = message.player_id === playerId}
       <div
@@ -78,9 +82,9 @@
             </span>
           {/if}
           <span
-            class="min-w-0 whitespace-pre-wrap break-words rounded-[1.1rem] px-3.5 py-2 text-sm leading-snug {mine
-              ? 'bg-riso-blue text-white'
-              : 'border border-riso-line bg-white'} {message.last ? (mine ? 'rounded-br-[0.3rem]' : 'rounded-bl-[0.3rem]') : ''}">
+            class="min-w-0 whitespace-pre-wrap break-words rounded-[3px] border-2 border-riso-ink px-3 py-1.5 font-stamp text-sm leading-snug {mine
+              ? 'bg-riso-blue text-white shadow-[2px_2px_0_var(--color-riso-pink)]'
+              : 'bg-white shadow-[2px_2px_0_rgb(0_0_0/0.15)]'}">
             {message.text}
           </span>
         </div>
@@ -94,7 +98,7 @@
   </div>
 
   <form
-    class="flex items-center gap-2 rounded-full border-2 border-riso-ink bg-white py-1 pl-4 pr-1 transition focus-within:border-riso-blue focus-within:ring-2 focus-within:ring-riso-blue/30"
+    class="flex items-center gap-2 rounded-[3px] border-2 border-riso-ink bg-white py-1 pl-3 pr-1 transition focus-within:border-riso-blue focus-within:ring-2 focus-within:ring-riso-blue/30"
     on:submit|preventDefault={submit}>
     <input
       id="chat-input"
@@ -105,13 +109,13 @@
       enterkeyhint="send"
       placeholder="Write a message"
       aria-label="Message"
-      class="min-w-0 flex-1 bg-transparent py-2 text-base outline-none placeholder:text-riso-muted/70" />
+      class="min-w-0 flex-1 bg-transparent py-2 font-stamp text-base outline-none placeholder:text-riso-muted/70" />
     <button
       id="chat-send"
       type="submit"
       aria-label="Send"
       disabled={!text.trim()}
-      class="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-full bg-riso-blue text-white transition enabled:hover:brightness-110 enabled:active:scale-95 disabled:cursor-default disabled:opacity-35">
+      class="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[2px] border-2 border-riso-ink bg-riso-pink text-white transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-[2px_2px_0_var(--color-riso-ink)] enabled:active:scale-95 disabled:cursor-default disabled:border-riso-line disabled:bg-riso-line/60">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 19V5M5 12l7-7 7 7" />
       </svg>

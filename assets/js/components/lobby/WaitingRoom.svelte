@@ -32,8 +32,9 @@
     return () => query.removeEventListener('change', update)
   })
 
-  // the phone's chat bar: closed until opened, and says how much you have missed meanwhile
-  let open = $state(false)
+  // the phone's chat bar: open to begin with, can be folded away, and says how much you have
+  // missed while it is folded
+  let open = $state(true)
   let seen = $state(0)
   let unread = $derived(
     open ? 0 : session.chat.messages.slice(seen).filter(m => m.player_id !== session.playerId).length
@@ -90,7 +91,7 @@
           aria-expanded={open}
           aria-controls="chat-panel"
           onclick={toggle}
-          class="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 rounded-[3px] border-2 border-riso-ink bg-white/60 px-4 py-2 font-display text-lg transition hover:bg-white">
+          class="flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 rounded-[3px] border-2 border-riso-ink bg-white/60 px-4 py-2 font-display text-lg transition hover:bg-white {open ? '-mb-3 rounded-b-none border-b-0' : ''}">
           <span>Chat</span>
           <span class="flex items-center gap-2">
             {#if unread > 0}
@@ -106,6 +107,7 @@
         <div class="flex flex-col lg:absolute lg:inset-0">
           <ChatPanel
             fill
+            heading={wide}
             messages={session.chat.messages}
             players={session.players}
             playerId={session.playerId}
