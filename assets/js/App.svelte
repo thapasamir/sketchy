@@ -39,7 +39,10 @@
     view = user ? 'dashboard' : 'home'
   }
 
-  $: document.title = view === 'lobby' ? `Room ${seat.code} · Sketchy` : 'Sketchy'
+  // the home page keeps the title it was served with, which is the one search engines show
+  const HOME_TITLE = document.title
+  $: document.title =
+    view === 'lobby' ? `Room ${seat.code} · Sketchy` : view === 'home' ? HOME_TITLE : view === 'auth' ? 'Log in · Sketchy' : 'Sketchy'
 
   onMount(() => {
     // Browsers keep sound off until the person has interacted with the page. Any first click or
