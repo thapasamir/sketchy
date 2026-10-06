@@ -356,6 +356,8 @@
 
     {#if looking}
       <div class="flex shrink-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <!-- (during the vote the same picking is done from the vote list, beside each Vote button) -->
+        {#if phase !== 'voting'}
         <div id="highlight-legend" class="min-w-0 flex-1 basis-full lg:basis-0">
           <!-- one row you can swipe on a phone (eight names would take three rows), wrapping on a wide screen -->
           <div class="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0" role="group" aria-label="Show one player's drawing">
@@ -377,8 +379,9 @@
             {focus ? 'Tap again, or empty paper, to see all.' : 'Tap a name or a line to isolate it.'}
           </p>
         </div>
+        {/if}
         {#if phase !== 'guess'}
-          <ReactionBar react={sendReaction} />
+          <div class="ml-auto"><ReactionBar react={sendReaction} /></div>
         {/if}
       </div>
     {/if}
@@ -427,7 +430,7 @@
        the players, and the chat taking all the height that is left, so nothing needs scrolling. -->
   <aside id="sidebar" class="flex flex-col gap-4 lg:h-[calc(100dvh-7rem)] lg:min-h-[30rem] lg:gap-3 lg:overflow-y-auto lg:pr-1">
     {#if phase === 'voting'}
-      <div class="order-1 lg:shrink-0"><VotePanel {room} {playerId} {vote} {castVote} showWatchers={!narrow} /></div>
+      <div class="order-1 lg:shrink-0"><VotePanel {room} {playerId} {vote} {castVote} {focus} look={toggleFocus} showWatchers={!narrow} /></div>
     {:else if phase === 'guess'}
       <div class="order-1 lg:shrink-0"><GuessPanel {room} {playerId} {secret} {submitGuess} /></div>
     {/if}

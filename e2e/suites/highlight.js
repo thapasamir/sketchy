@@ -70,12 +70,15 @@ const pressed = (p, name) => p.$eval(`[data-highlight="${name}"]`, e => e.getAtt
   const all = await newGame(b); const [host, bob, cara] = all
   ok('drawing finished, vote open', await drawAll(all))
   await wait(400)
-  ok('legend has a chip per player', (await host.$$('[data-highlight]')).length === 3)
-  const shapes = await host.$$eval('#highlight-legend [data-marker]', els => els.map(e => e.dataset.marker))
-  ok('each chip has its own shape', new Set(shapes).size === 3, shapes.join(','))
-  const inits = await host.$$eval('#highlight-legend svg text', els => els.map(e => e.textContent).sort().join(''))
-  ok('and its initial', inits === 'BCH', inits)
-  ok('vote buttons carry shapes too', (await host.$$('[data-vote] [data-marker]')).length === 2)
+  // during the vote, looking and voting are both done from the vote list: a name to look at, and a Vote button
+  ok('the vote list has a name to look at for each other player', (await host.$$('#vote-panel [data-highlight]')).length === 2)
+  ok('and no separate legend under the picture while voting', !(await host.$('#highlight-legend')))
+  ok('each has a Vote button', (await host.$$('#vote-panel [data-vote]')).length === 2)
+  const shapes = await host.$$eval('#vote-panel [data-highlight] [data-marker]', els => els.map(e => e.dataset.marker))
+  ok('each name has its own shape', new Set(shapes).size === 2, shapes.join(','))
+  const faced = await host.$$eval('#vote-panel [data-highlight] [data-marker]', els => els.map(e => e.getAttribute('data-faced')))
+  ok('and shows their face, so you know who is who', faced.length === 2 && faced.every(f => f === 'true'), faced.join(','))
+  ok('the steps are spelled out above the list', /Tap a name.*Press Vote/s.test(await host.$eval('#vote-steps', e => e.textContent)))
   ok('all three lines clear at first', (await alpha(host, 'Host')) > 200 && (await alpha(host, 'Bob')) > 200 && (await alpha(host, 'Cara')) > 200)
 
   await host.click('[data-highlight="Bob"]'); await wait(250)
@@ -96,8 +99,11 @@ const pressed = (p, name) => p.$eval(`[data-highlight="${name}"]`, e => e.getAtt
 
   // voting still works while a name is highlighted
   await host.click('[data-highlight="Bob"]'); await wait(150)
+  ok('looking at a drawing is not a vote', (await host.$eval('[data-vote="Bob"]', e => e.getAttribute('aria-pressed'))) === 'false' && /0 of 3 voted/.test(await host.$eval('#vote-count', e => e.textContent)))
   await vote(host, 'Bob'); await wait(300)
   ok('can still vote', (await host.$eval('[data-vote="Bob"]', e => e.getAttribute('aria-pressed'))) === 'true')
+  ok('the button says so', /Voted/.test(await host.$eval('[data-vote="Bob"]', e => e.textContent)))
+  ok('and who the vote is still waiting for is named', /Waiting for .*Bob.*Cara|Waiting for .*Cara.*Bob/.test(await host.$eval('#vote-waiting', e => e.textContent)), await host.$eval('#vote-waiting', e => e.textContent))
   ok('no page errors', all.every(p => p.errs.length === 0), all.flatMap(p => p.errs).join('|'))
   await b.close()
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED'); process.exit(fails ? 1 : 0)

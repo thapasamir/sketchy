@@ -80,7 +80,7 @@ const SECRET_VOTE = /"vote":"/
     await vote(crew[0], crew[1].name); await wait(300)
     ok('a vote is highlighted for the voter', await crew[0].$eval(`[data-vote="${crew[1].name}"]`, e => e.getAttribute('aria-pressed') === 'true'))
     ok('everyone sees that ONE person has voted', (await Promise.all(all.map(async p => /1 of 3 voted/.test(await text(p, '#vote-count'))))).every(Boolean))
-    ok('and who it was, in the player list', await crew[1].$eval(`[data-vote="${crew[0].name}"] [data-voted]`, () => true).catch(() => false))
+    ok('and who it was, in the player list', await crew[1].$eval(`[data-vote-row="${crew[0].name}"] [data-voted]`, () => true).catch(() => false))
     await vote(crew[0], imposter.name); await wait(300)
     ok('changing the vote moves the highlight', await crew[0].$eval(`[data-vote="${imposter.name}"]`, e => e.getAttribute('aria-pressed') === 'true') && await crew[0].$eval(`[data-vote="${crew[1].name}"]`, e => e.getAttribute('aria-pressed') === 'false'))
     ok('...without counting twice', (await Promise.all(all.map(async p => /1 of 3 voted/.test(await text(p, '#vote-count'))))).every(Boolean))
