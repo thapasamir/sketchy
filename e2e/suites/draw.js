@@ -50,7 +50,7 @@ async function stroke(p, pts) {
   ok('the drawer is told it is their turn', (await text(drawer, '#turn-text')) === 'Your turn. Draw!')
   const t0 = parseInt(await text(drawer, '#turn-timer'))
   ok('a countdown is running', t0 > 0 && t0 <= 8, 'seconds=' + t0)
-  const color = rgb(await drawer.$eval('#turn-order li[data-drawing="true"] [data-marker] polygon, #turn-order li[data-drawing="true"] [data-marker] circle', e => getComputedStyle(e).fill))
+  const color = rgb(await drawer.$eval('#turn-order li[data-drawing="true"] [data-marker] path[fill]:not([opacity]), #turn-order li[data-drawing="true"] [data-marker] polygon, #turn-order li[data-drawing="true"] [data-marker] circle', e => getComputedStyle(e).fill))
 
   console.log('--- drawing live')
   ok('canvas starts empty on every screen', (await Promise.all(all.map(p => inked(p, 0.5, 0.5)))).every(v => !v))
@@ -92,7 +92,7 @@ async function stroke(p, pts) {
   const prev = drawer; drawer = all[turns.indexOf(true)]; spectators = all.filter(p => p !== drawer)
   ok('the new drawer sees the earlier line, drawn by the first player', await inked(drawer, 0.5, 0.5))
   ok('the old drawer can no longer draw', (await prev.$eval('#board', e => e.dataset.canDraw)) === 'false')
-  const color2 = rgb(await drawer.$eval('#turn-order li[data-drawing="true"] [data-marker] polygon, #turn-order li[data-drawing="true"] [data-marker] circle', e => getComputedStyle(e).fill))
+  const color2 = rgb(await drawer.$eval('#turn-order li[data-drawing="true"] [data-marker] path[fill]:not([opacity]), #turn-order li[data-drawing="true"] [data-marker] polygon, #turn-order li[data-drawing="true"] [data-marker] circle', e => getComputedStyle(e).fill))
   ok('the players have different colours', !close(color, color2, 30), JSON.stringify([color, color2]))
   await stroke(drawer, [[0.3, 0.8], [0.7, 0.8]]); await wait(400)
   ok('the second player\'s line is in THEIR colour on every screen', (await Promise.all(all.map(async p => close(await pixel(p, 0.5, 0.8), color2)))).every(Boolean))

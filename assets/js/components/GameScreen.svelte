@@ -12,6 +12,7 @@
   import ReactionLayer from './ReactionLayer.svelte'
   import RevealStamp from './RevealStamp.svelte'
   import TurnProgress from './TurnProgress.svelte'
+  import SecretCard from './SecretCard.svelte'
   import { play } from '../lib/sound.js'
   import { tickFor, TIMING } from '../lib/cues.js'
   import { urgencyOf, fractionLeft } from '../lib/countdown.js'
@@ -290,7 +291,7 @@
 <!-- Wide screens: the stage (banner, picture, tools, all one width and sized to fit the window) on the
      left, and one sidebar on the right whose chat fills whatever height is left. -->
 <div
-  class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[max(20rem,calc(100dvh-18.5rem))_21rem] lg:justify-center lg:gap-6"
+  class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:justify-center lg:gap-6 lg:grid-cols-[max(20rem,calc(100dvh-18.5rem))_21rem]"
   style={dockHeight ? `padding-bottom:${dockHeight}px` : ''}>
   <section
     class="flex min-w-0 flex-col gap-3 {immersive
@@ -560,9 +561,9 @@
     {#if drawing}
       <TurnProgress {room} {playerId} />
     {/if}
-    {#if phase !== 'voting' || narrow}
+    {#if (phase !== 'voting' || narrow) && !drawing}
     <Card class="order-3 !p-4 lg:order-3 lg:shrink-0 lg:!p-3">
-      <h3 class="mb-3 font-display text-lg lg:mb-2">{drawing ? 'Drawing order' : 'Players'}</h3>
+      <h3 class="mb-3 font-display text-lg lg:mb-2">Players</h3>
       <ol id="turn-order" class="flex flex-col gap-1.5 lg:gap-1">
         {#each order as player, i (player.id)}
           <li
@@ -606,37 +607,7 @@
     {/if}
 
     {#if secret}
-    <Card id="secret-card" class="order-4 !p-4 text-center lg:order-2 lg:shrink-0 lg:!p-3">
-      <div class="mb-2 flex items-center justify-between gap-2 text-left">
-        <div class="font-stamp text-sm text-riso-muted">
-          Category <span id="secret-category" class="ml-1 text-riso-ink">{secret?.category}</span>
-        </div>
-        <button
-          type="button"
-          id="secret-toggle"
-          on:click={() => (hidden = !hidden)}
-          class="cursor-pointer font-stamp text-xs text-riso-muted underline hover:text-riso-ink">
-          {hidden ? 'show' : 'hide'}
-        </button>
-      </div>
-
-      {#if secret}
-        {#if hidden}
-          <p class="py-3 font-stamp text-sm text-riso-muted">Your card is hidden.</p>
-        {:else if secret.role === 'imposter'}
-          <h3 id="secret-role" class="font-display text-xl text-riso-pink mix-blend-multiply">You're the imposter</h3>
-          <p class="mt-1 text-xs text-riso-muted">You don't know the word. Your clue:</p>
-          <div
-            id="secret-hint"
-            class="mx-auto mt-2 inline-block border-2 border-dashed border-riso-ink bg-white/60 px-4 py-1.5 font-display text-lg">
-            {secret.hint}
-          </div>
-        {:else}
-          <h3 id="secret-role" class="font-stamp text-sm text-riso-muted">Your secret word</h3>
-          <div id="secret-word" class="mt-1 break-words font-display text-2xl text-riso-blue">{secret.word}</div>
-        {/if}
-      {/if}
-    </Card>
+      <SecretCard {secret} bind:hidden />
     {/if}
     {/if}
   </aside>

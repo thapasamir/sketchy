@@ -109,7 +109,7 @@ async function newGame(b, names = ['Host', 'Bob', 'Cara']) {
     ok('and is no longer "watching"', !(await late.$('#spectator-note')))
     await until(async () => (await Promise.all(everyone.map(p => p.$('#board')))).every(Boolean), 12000); await wait(400)
     ok('the drawing order now has 4 players, Late included', (await all[0].$$eval('#turn-order li', e => e.length)) === 4 && !!(await all[0].$('#turn-order li[data-player="Late"]')))
-    const swatches = await all[0].$$eval('#turn-order li [data-marker]', els => els.map(e => e.querySelector('polygon, circle').getAttribute('fill')))
+    const swatches = await all[0].$$eval('#turn-order li [data-marker]', els => els.map(e => e.querySelector('path[fill]:not([opacity]), polygon, circle').getAttribute('fill')))
     ok('with a colour of their own', new Set(swatches).size === 4, JSON.stringify(swatches))
 
     // go round until it is Late's turn, and let them draw

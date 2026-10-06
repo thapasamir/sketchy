@@ -1,6 +1,8 @@
 <script>
+  import { onMount } from 'svelte'
   import Card from './Card.svelte'
   import Marker from './Marker.svelte'
+  import { hasSeenVoteHelp, markVoteHelpSeen } from '../lib/prefs.js'
 
   export let room
   export let playerId
@@ -20,6 +22,9 @@
   export let unread = 0
   export let openChat = () => {}
   let open = true
+  // how to vote: shown the first time this browser votes, after that behind the "?"
+  let help = !hasSeenVoteHelp()
+  onMount(markVoteHelpSeen)
   $: folded = dock && !open
 
   // Only the people playing the round vote and are voted for. Someone who arrived mid-game is
@@ -68,7 +73,21 @@
     {/if}
   </div>
   <div class="flex items-baseline justify-between gap-3">
-    <h3 class="font-display text-lg">Who is the imposter?</h3>
+    <h3 class="flex items-center gap-2 font-display text-lg">
+      Who is the imposter?
+      {#if !iAmWatching}
+        <button
+          type="button"
+          id="vote-help"
+          aria-expanded={help}
+          aria-controls="vote-steps"
+          aria-label="How to vote"
+          on:click={() => (help = !help)}
+          class="grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-full border-2 border-riso-ink font-display text-sm leading-none transition active:scale-90 {help ? 'bg-riso-ink text-white' : 'bg-white/70 hover:bg-white'}">
+          ?
+        </button>
+      {/if}
+    </h3>
     <span id="vote-count" class="shrink-0 font-stamp text-xs text-riso-muted">{voted.length} of {here} voted</span>
   </div>
 
@@ -78,15 +97,13 @@
     </p>
   {:else}
     <!-- what to do, before the list, in the order you do it -->
-    {#if dock}
-      <p id="vote-steps" class="mb-2 font-stamp text-xs text-riso-muted" class:hidden={folded}>
-        Tap a name to see their drawing, then press <b class="text-riso-ink">Vote</b>.
-      </p>
-    {:else}
-      <ol id="vote-steps" class="mb-3 mt-1 flex flex-col gap-0.5 font-stamp text-xs text-riso-muted">
+    {#if help}
+      <ol id="vote-steps" class="mb-3 mt-2 flex flex-col gap-0.5 border-l-2 border-riso-ink/30 pl-3 font-stamp text-xs text-riso-muted" class:hidden={folded}>
         <li><b class="text-riso-ink">1.</b> Tap a name to see only what they drew.</li>
         <li><b class="text-riso-ink">2.</b> Press <b class="text-riso-ink">Vote</b> for the one who doesn't fit the word.</li>
       </ol>
+    {:else}
+      <div class="mb-2"></div>
     {/if}
 
     <div class="flex flex-col gap-1.5 {dock ? 'max-h-[27dvh] overflow-y-auto overscroll-contain' : ''}" class:hidden={folded}>

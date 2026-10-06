@@ -78,7 +78,10 @@ const pressed = (p, name) => p.$eval(`[data-highlight="${name}"]`, e => e.getAtt
   ok('each name has its own shape', new Set(shapes).size === 2, shapes.join(','))
   const faced = await host.$$eval('#vote-panel [data-highlight] [data-marker]', els => els.map(e => e.getAttribute('data-faced')))
   ok('and shows their face, so you know who is who', faced.length === 2 && faced.every(f => f === 'true'), faced.join(','))
-  ok('the steps are spelled out above the list', /Tap a name.*Press Vote/s.test(await host.$eval('#vote-steps', e => e.textContent)))
+  ok('the steps are shown the first time, and a ? button is there for later', !!(await host.$('#vote-help')) && (await host.$eval('#vote-help', e => e.getAttribute('aria-expanded'))) === 'true')
+  await host.click('#vote-help'); ok('the ? hides them', !(await host.$('#vote-steps')))
+  await host.click('#vote-help')
+  ok('and brings them back', /Tap a name.*Press Vote/s.test(await host.$eval('#vote-steps', e => e.textContent)))
   ok('all three lines clear at first', (await alpha(host, 'Host')) > 200 && (await alpha(host, 'Bob')) > 200 && (await alpha(host, 'Cara')) > 200)
 
   await host.click('[data-highlight="Bob"]'); await wait(250)
