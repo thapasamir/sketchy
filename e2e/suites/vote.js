@@ -73,6 +73,7 @@ const SECRET_VOTE = /"vote":"/
       const names = await p.$$eval('[data-vote]', els => els.map(e => e.dataset.vote))
       ok(`${p.name} can pick the two OTHER players, not themselves`, names.length === 2 && !names.includes(p.name), names.join(','))
     }
+    ok('the clock is a ring that says how pressing it is, and the vote area is marked "Vote now"', (await Promise.all(all.map(async p => !!(await p.$('[data-urgency]')) && /Vote now/.test(await text(p, '#vote-panel'))))).every(Boolean))
     ok('nobody has voted yet', (await Promise.all(all.map(async p => /0 of 3 voted/.test(await text(p, '#vote-count'))))).every(Boolean))
     await crew[0].screenshot({ path: shots + '/vt-voting.png' })
 

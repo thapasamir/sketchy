@@ -28,7 +28,11 @@
     waiting.length <= 3 ? waiting.join(', ') : `${waiting.slice(0, 2).join(', ')} and ${waiting.length - 2} more`
 </script>
 
-<Card id="vote-panel" class="animate-rise !p-4 lg:!p-3">
+<!-- red and pink, unlike everything else on the screen, so the vote can't be missed -->
+<Card id="vote-panel" class="animate-rise !border-riso-stamp !bg-riso-pink/10 !p-4 lg:!p-3">
+  <div class="-mx-4 -mt-4 mb-3 bg-riso-stamp px-4 py-1 font-stamp text-xs uppercase tracking-widest text-white lg:-mx-3 lg:-mt-3">
+    Vote now
+  </div>
   <div class="flex items-baseline justify-between gap-3">
     <h3 class="font-display text-lg">Who is the imposter?</h3>
     <span id="vote-count" class="shrink-0 font-stamp text-xs text-riso-muted">{voted.length} of {here} voted</span>

@@ -14,6 +14,9 @@
   import TurnProgress from './TurnProgress.svelte'
   import { play } from '../lib/sound.js'
   import { tickFor, TIMING } from '../lib/cues.js'
+  import { urgencyOf, fractionLeft } from '../lib/countdown.js'
+  import Countdown from './Countdown.svelte'
+  import VoteSplash from './VoteSplash.svelte'
 
   export let room
   export let secret
@@ -117,7 +120,7 @@
   }
   $: msLeft = Math.max(0, deadline - now)
   $: secondsLeft = Math.ceil(msLeft / 1000)
-  $: hurry = !!stage && secondsLeft <= 5
+  $: urgency = urgencyOf({ phase, secondsLeft, totalMs: total })
 
   $: accusedName = result?.accused ? result.names[result.accused] : null
   $: guesserName = byId[room.guess?.guesser_id]?.name ?? 'The imposter'
@@ -143,6 +146,17 @@
     if (tick && secondsLeft !== lastTick) play(tick)
     lastTick = secondsLeft
   }
+
+  // "Time to vote!" shows once as the vote opens
+  const SPLASH_MS = 1800
+  let splash = false
+  let splashedRound = null
+  $: if (phase === 'voting' && splashedRound !== room.round) {
+    splashedRound = room.round
+    splash = true
+    splashTimer = setTimeout(() => (splash = false), SPLASH_MS)
+  }
+  let splashTimer
 
   // a new banner pops in whenever the moment changes: a new turn, the vote, the guess, the result
   $: bannerKey = `${phase}:${turn?.n}`
@@ -194,6 +208,7 @@
   onMount(() => (ticker = setInterval(() => (now = performance.now()), 100)))
   onDestroy(() => {
     clearInterval(ticker)
+    clearTimeout(splashTimer)
     spotlightTimers.forEach(clearTimeout)
     if (typeof document !== 'undefined') document.body.style.overflow = ''
   })
@@ -207,6 +222,8 @@
 </script>
 
 <svelte:window on:keydown={onKey} />
+
+{#if splash}<VoteSplash />{/if}
 
 <!-- Wide screens: the stage (banner, picture, tools, all one width and sized to fit the window) on the
      left, and one sidebar on the right whose chat fills whatever height is left. -->
@@ -223,7 +240,11 @@
       id="turn-banner"
       data-phase={phase}
       data-my-turn={myTurn}
-      class="overflow-hidden rounded-[3px] border-2 border-riso-ink {phase === 'guess' ? 'animate-shake' : 'animate-pop'} {myTurn ? 'bg-riso-yellow' : 'bg-white/60'}">
+      class="overflow-hidden rounded-[3px] border-2 {phase === 'guess' ? 'animate-shake' : 'animate-pop'} {phase === 'voting'
+        ? 'border-riso-stamp bg-riso-pink/25'
+        : myTurn
+          ? 'border-riso-ink bg-riso-yellow'
+          : 'border-riso-ink bg-white/60'}">
       <div class="flex items-center gap-3 {immersive ? 'px-3 py-2' : 'px-4 py-3'}">
         {#if drawing}
           <Marker player={drawer} size={30} />
@@ -258,11 +279,7 @@
           </div>
         {/if}
         {#if stage}
-          <div
-            id="turn-timer"
-            class="font-display tabular-nums {immersive ? 'text-2xl' : 'text-3xl'} {hurry ? 'animate-pulse text-riso-stamp' : ''}">
-            {secondsLeft}
-          </div>
+          <Countdown {secondsLeft} {msLeft} totalMs={total} {phase} size={immersive ? 48 : 64} />
         {/if}
         {#if immersive}
           <button
@@ -276,10 +293,14 @@
         {/if}
       </div>
       {#if stage}
-        <div class="h-1.5 bg-riso-ink/10">
+        <div class="h-2.5 bg-riso-ink/10">
           <div
-            class="h-full transition-[width] duration-100 ease-linear {hurry ? 'bg-riso-stamp' : 'bg-riso-ink'}"
-            style="width:{(msLeft / total) * 100}%">
+            class="h-full transition-[width,background-color] duration-100 ease-linear {urgency === 'urgent'
+              ? 'bg-riso-stamp'
+              : urgency === 'warn'
+                ? 'bg-riso-pink'
+                : 'bg-riso-ink'}"
+            style="width:{fractionLeft(msLeft, total) * 100}%">
           </div>
         </div>
       {/if}
