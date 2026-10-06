@@ -1,4 +1,4 @@
-// Emoji reactions on screen. Like chat they are only relayed: each one floats for a moment and is
+// Sticker reactions on screen. Like chat they are only relayed: each one floats for a moment and is
 // dropped. (Which names are allowed, and how they are placed, is in reactions.js.)
 import { show, SHOW_MS } from './reactions.js'
 

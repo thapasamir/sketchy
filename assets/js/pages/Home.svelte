@@ -3,8 +3,10 @@
   import InkTrail from '../components/InkTrail.svelte'
   import Wordmark from '../components/Wordmark.svelte'
   import Button from '../components/Button.svelte'
+  import HomeScene from '../components/HomeScene.svelte'
   import { createGuestUser } from '../lib/api.js'
   import { FAQ } from '../lib/faq.js'
+  import { trackMisprint } from '../lib/misprint.js'
 
   const dispatch = createEventDispatcher()
 
@@ -15,25 +17,7 @@
   let busy = false
   let error = ''
 
-  const STEPS = [
-    ['Get a secret', "Everyone is told the same word. One player isn't.", 'bg-riso-pink text-riso-paper'],
-    ['Draw together', 'Take turns adding to one shared picture.', 'bg-riso-blue text-white'],
-    ['Spot the fake', 'Vote out the imposter before they blend in.', 'bg-riso-yellow text-riso-ink'],
-  ]
-
-  // Logo misprint: the two inks slide in opposite directions as the pointer moves
-  onMount(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const root = document.documentElement
-    function onMove(e) {
-      const nx = (e.clientX / window.innerWidth - 0.5) * 2
-      const ny = (e.clientY / window.innerHeight - 0.5) * 2
-      root.style.setProperty('--mx', (nx * 7).toFixed(1) + 'px')
-      root.style.setProperty('--my', (ny * 5).toFixed(1) + 'px')
-    }
-    window.addEventListener('pointermove', onMove)
-    return () => window.removeEventListener('pointermove', onMove)
-  })
+  onMount(trackMisprint)
 
   async function playAsGuest() {
     error = ''
@@ -69,6 +53,8 @@
     </p>
   {/if}
 
+  <div class="mb-8"><HomeScene /></div>
+
   <div class="flex w-full max-w-sm flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:gap-5">
     <Button variant="pink" class="sm:min-w-52" disabled={busy} on:click={playAsGuest}>
       {busy ? 'One sec…' : 'Play as Guest'}
@@ -81,19 +67,6 @@
   {#if error}
     <p class="mt-5 font-stamp text-sm text-riso-stamp" role="alert">{error}</p>
   {/if}
-
-  <!-- the whole game in three lines, so a first visit doesn't need the long rules -->
-  <ol id="home-steps" class="mt-10 grid w-full max-w-2xl gap-4 sm:grid-cols-3">
-    {#each STEPS as [title, text, color], i}
-      <li class="flex items-start gap-3">
-        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-riso-ink font-display {color}">{i + 1}</span>
-        <div class="min-w-0">
-          <h3 class="font-display text-base">{title}</h3>
-          <p class="text-sm text-riso-muted">{text}</p>
-        </div>
-      </li>
-    {/each}
-  </ol>
 
   <button
     type="button"

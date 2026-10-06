@@ -58,7 +58,7 @@ async function fresh(b, vp, seen = false) {
   console.log('--- the home screen')
   for (const [label, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', { width: 390, height: 844, isMobile: true, hasTouch: true }]]) {
     const p = await fresh(b, vp); await p.goto(U + '/', { waitUntil: 'networkidle0' })
-    ok(`${label}: three steps are shown`, (await p.$$('#home-steps li')).length === 3)
+    ok(`${label}: the game scene is shown`, !!(await p.$('#home-scene svg')) && (await p.$$('#home-scene [data-marker]')).length === 5)
     const fit = await fitsScreen(p)
     ok(`${label}: it fits the screen`, fit.ok, fit.offenders.join(', '))
     ok(`${label}: both buttons are still there`, !!(await p.$('button')) && /Play as Guest/.test(await p.evaluate(() => document.body.innerText)))

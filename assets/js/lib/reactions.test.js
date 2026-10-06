@@ -1,11 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { REACTIONS, emojiFor, show, MAX_SHOWN } from './reactions.js'
+import { REACTIONS, isReaction, show, MAX_SHOWN } from './reactions.js'
 
-test('every reaction has a picture and a label, and no two share an id', () => {
+test('every reaction has a label, and no two share an id', () => {
   assert.equal(new Set(REACTIONS.map(r => r.id)).size, REACTIONS.length)
-  for (const r of REACTIONS) assert.ok(r.emoji && r.label, r.id)
+  for (const r of REACTIONS) assert.ok(r.label, r.id)
 })
 
 test('the ids match the ones the server accepts', () => {
@@ -14,15 +14,15 @@ test('the ids match the ones the server accepts', () => {
   assert.deepEqual(REACTIONS.map(r => r.id), ids)
 })
 
-test('a name the list does not know has no picture', () => {
-  assert.equal(emojiFor('laugh'), '😂')
-  assert.equal(emojiFor('<script>'), null)
-  assert.equal(emojiFor(undefined), null)
+test('a name the list does not know is not a reaction', () => {
+  assert.ok(isReaction('laugh'))
+  assert.ok(!isReaction('<script>'))
+  assert.ok(!isReaction(undefined))
 })
 
-test('a reaction arrives with its picture, its sender and a place to float from', () => {
+test('a reaction arrives with its name, its sender and a place to float from', () => {
   const [one] = show([], { id: 'fire', name: 'Bob' }, 1, () => 0.5)
-  assert.deepEqual(one, { key: 1, emoji: '🔥', name: 'Bob', x: 50 })
+  assert.deepEqual(one, { key: 1, id: 'fire', name: 'Bob', x: 50 })
 })
 
 test('it floats up from inside the picture, never at the very edge', () => {

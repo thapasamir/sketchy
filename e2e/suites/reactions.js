@@ -40,7 +40,7 @@ async function newGame(b) {
   return all
 }
 const vote = (p, name) => p.click(`[data-vote="${name}"]`)
-const floating = p => p.$$eval('[data-reaction]', els => els.map(e => e.textContent.trim().replace(/\s+/g, ' ')))
+const floating = p => p.$$eval('[data-reaction]', els => els.map(e => e.dataset.reactionId + ' ' + e.textContent.trim().replace(/\s+/g, ' ')))
 
 ;(async () => {
   const b = await launch()
@@ -52,14 +52,14 @@ const floating = p => p.$$eval('[data-reaction]', els => els.map(e => e.textCont
   ok('watchers have one with 6 buttons', (await others[0].$$('#reaction-bar [data-react]')).length === 6)
 
   await others[0].click('[data-react="fire"]')
-  ok('everyone sees it float, with the sender', await until(async () => (await Promise.all(all.map(floating))).every(l => l.some(t => t.includes('🔥') && t.includes(others[0].name)))), JSON.stringify(await floating(drawer)))
+  ok('everyone sees it float, with the sender', await until(async () => (await Promise.all(all.map(floating))).every(l => l.some(t => t.startsWith('fire ') && t.includes(others[0].name)))), JSON.stringify(await floating(drawer)))
   ok('it does not block the drawing (pointer-events none)', await drawer.$eval('[data-reactions]', e => getComputedStyle(e).pointerEvents === 'none'))
   ok('and is hidden from screen readers', await drawer.$eval('[data-reactions]', e => e.getAttribute('aria-hidden') === 'true'))
 
   // quick taps are paced, not errors
   for (let i = 0; i < 5; i++) { await others[1].click('[data-react="laugh"]') }
   await wait(300)
-  ok('a flurry of taps shows fewer than 5', (await floating(drawer)).filter(t => t.includes('😂')).length < 5)
+  ok('a flurry of taps shows fewer than 5', (await floating(drawer)).filter(t => t.startsWith('laugh ')).length < 5)
 
   await wait(2800)
   ok('they fade away', (await floating(drawer)).length === 0, JSON.stringify(await floating(drawer)))
@@ -69,7 +69,7 @@ const floating = p => p.$$eval('[data-reaction]', els => els.map(e => e.textCont
   await wait(300)
   ok('reaction bar in the vote', !!(await all[0].$('#reaction-bar')))
   await all[1].click('[data-react="sus"]')
-  ok('shown to all in the vote', await until(async () => (await Promise.all(all.map(floating))).every(l => l.some(t => t.includes('🤨')))))
+  ok('shown to all in the vote', await until(async () => (await Promise.all(all.map(floating))).every(l => l.some(t => t.startsWith('sus ')))))
   ok('no page errors', all.every(p => p.errs.length === 0), all.flatMap(p => p.errs).join('|'))
 
   // reduced motion still shows it

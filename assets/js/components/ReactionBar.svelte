@@ -1,5 +1,6 @@
 <script>
   import { REACTIONS } from '../lib/reactions.js'
+  import Sticker from './Sticker.svelte'
 
   // `react` is called with a reaction's id
   export let react = () => {}
@@ -21,8 +22,8 @@
       data-react={reaction.id}
       aria-label={reaction.label}
       on:click={() => tap(reaction.id)}
-      class="grid h-11 w-11 min-w-0 shrink cursor-pointer place-items-center rounded-[3px] border-2 border-transparent text-2xl transition lg:h-9 lg:w-9 lg:text-xl hover:border-riso-line active:scale-90">
-      <span aria-hidden="true">{reaction.emoji}</span>
+      class="grid h-11 w-11 min-w-0 shrink cursor-pointer place-items-center rounded-[3px] border-2 border-transparent p-0.5 transition lg:h-9 lg:w-9 hover:-rotate-6 hover:border-riso-line active:scale-90">
+      <Sticker id={reaction.id} />
     </button>
   {/each}
 </div>

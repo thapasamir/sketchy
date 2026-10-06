@@ -1,13 +1,18 @@
 <script>
   import { onMount } from 'svelte'
 
+  // `soft` is for screens with a form on them: a shorter, fainter trail, and only for a mouse
+  export let soft = false
+
   let canvas
-  const LIFE = 1300 // ms a scribble stays visible
+  $: LIFE = soft ? 800 : 1300 // ms a scribble stays visible
+  $: FADE = soft ? 0.45 : 0.85
   let points = []
   let raf = null
 
   onMount(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (soft && !window.matchMedia('(pointer: fine)').matches) return
 
     const ctx = canvas.getContext('2d')
     let w = 0, h = 0
@@ -29,8 +34,8 @@
         const a = points[i - 1], b = points[i]
         const age = (now - b.t) / LIFE
         if (age >= 1 || b.t - a.t > 80) continue // gap in movement = lift the pen
-        ctx.globalAlpha = (1 - age) * 0.85
-        ctx.lineWidth = 3 + (1 - age) * 7
+        ctx.globalAlpha = (1 - age) * FADE
+        ctx.lineWidth = soft ? 2 + (1 - age) * 4 : 3 + (1 - age) * 7
         ctx.beginPath()
         ctx.moveTo(a.x + dx, a.y + dy)
         ctx.lineTo(b.x + dx, b.y + dy)

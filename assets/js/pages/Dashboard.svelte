@@ -1,5 +1,8 @@
 <script>
-  import { createEventDispatcher } from 'svelte'
+  import { createEventDispatcher, onMount } from 'svelte'
+  import InkTrail from '../components/InkTrail.svelte'
+  import Wordmark from '../components/Wordmark.svelte'
+  import { trackMisprint } from '../lib/misprint.js'
   import Button from '../components/Button.svelte'
   import Card from '../components/Card.svelte'
   import Field from '../components/Field.svelte'
@@ -12,6 +15,8 @@
   export let user
   export let inviteCode = '' // from an invite link, so Join comes first
   export let notice = '' // e.g. "That room has closed"
+
+  onMount(trackMisprint)
 
   const registered = user.userType === 'registered'
 
@@ -57,8 +62,11 @@
   const submit = () => enter(code.length === 4 || inviteCode ? 'join' : 'create')
 </script>
 
-<main class="flex min-h-dvh items-center justify-center px-4 py-8">
-  <Card class="w-full max-w-lg">
+<InkTrail soft />
+<main class="flex min-h-dvh flex-col items-center justify-center gap-7 px-4 py-8">
+  <Wordmark class="text-[clamp(2.25rem,9vw,3.25rem)]" />
+  <Card class="relative w-full max-w-lg shadow-[6px_6px_0_var(--color-riso-pink)]">
+    <span aria-hidden="true" class="absolute -top-3 right-5 rotate-3 border-2 border-riso-stamp bg-white px-1.5 py-0.5 font-stamp text-[0.65rem] uppercase tracking-widest text-riso-stamp">player file</span>
     <form on:submit|preventDefault={submit} novalidate>
       <div class="mb-2 flex items-start justify-between gap-4">
         <h2 class="font-display text-2xl">
@@ -96,7 +104,7 @@
       <div class="flex flex-col">
         <div class={inviteCode ? 'order-3' : 'order-1'}>
           <Button
-            variant={inviteCode ? 'outline' : 'blue'}
+            variant={inviteCode ? 'outline' : 'pink'}
             class="w-full"
             disabled={!!busy}
             on:click={() => enter('create')}>
