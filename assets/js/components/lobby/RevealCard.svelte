@@ -7,7 +7,7 @@
   let { room, secret, secondsLeft } = $props()
 </script>
 
-<Card id="secret-card" class="flex animate-flip-in flex-col justify-center gap-4 text-center">
+<Card id="secret-card" class="flex min-h-[min(30rem,70dvh)] animate-flip-in flex-col justify-center gap-4 text-center">
   {#if secret}
     <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
       Round {room.round} of {room.rounds}

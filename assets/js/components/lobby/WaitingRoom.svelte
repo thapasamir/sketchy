@@ -7,7 +7,6 @@
   import InvitePanel from './InvitePanel.svelte'
   import LobbyAction from './LobbyAction.svelte'
   import PlayerList from './PlayerList.svelte'
-  import RevealCard from './RevealCard.svelte'
   import SettingsCard from './SettingsCard.svelte'
 
   // Everything before the drawing starts. The room on the left, top to bottom: the code and how to
@@ -73,11 +72,7 @@
         </p>
       </Card>
 
-      {#if session.playing}
-        <RevealCard {room} secret={session.secret} secondsLeft={session.secondsLeft} />
-      {:else}
-        <SettingsCard {session} />
-      {/if}
+      <SettingsCard {session} />
     </div>
 
     {#if !session.playing}

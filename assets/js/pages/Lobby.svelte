@@ -7,13 +7,15 @@
   import FinalScreen from '../components/FinalScreen.svelte'
   import Toasts from '../components/Toasts.svelte'
   import ConnectionBanner from '../components/ConnectionBanner.svelte'
+  import Controls from '../components/Controls.svelte'
+  import RevealScreen from '../components/lobby/RevealScreen.svelte'
   import WaitingRoom from '../components/lobby/WaitingRoom.svelte'
   import { RoomSession } from '../lib/room-session.svelte.js'
 
   // This page is the frame: it joins the room (see RoomSession, which holds everything the server
   // says and everything we can ask of it) and picks the screen for the room's phase.
   // `onleave()` is called when the person leaves; `ongone(reason)` when the seat can't be used.
-  let { roomCode = '', playerId, onleave, ongone } = $props()
+  let { roomCode = '', playerId, onleave, ongone, onhelp = () => {} } = $props()
 
   // A seat never changes while this page is open (leaving closes it), so the props are read once.
   const session = untrack(() => new RoomSession({ roomCode, playerId, onGone: reason => ongone(reason) }))
@@ -30,8 +32,11 @@
 <main
   class="mx-auto flex min-h-dvh w-full flex-col gap-8 px-4 pb-24 pt-6 sm:pt-8 {session.status === 'live' ? 'max-w-6xl lg:max-w-7xl lg:!gap-4 lg:!pb-6 lg:!pt-4' : 'max-w-4xl'}">
   <header class="flex items-center justify-between gap-4">
-    <Wordmark class="text-3xl sm:text-4xl" />
-    <Button class="px-4 py-2.5 font-stamp text-sm sm:px-6" onclick={() => onleave()}>← Leave</Button>
+    <Wordmark class="text-2xl sm:text-4xl" />
+    <div class="flex items-center gap-2">
+      <Controls inline {onhelp} />
+      <Button class="whitespace-nowrap px-3 py-2.5 font-stamp text-sm sm:px-6" onclick={() => onleave()}>← Leave</Button>
+    </div>
   </header>
 
   {#if session.status === 'error'}
@@ -75,6 +80,9 @@
       reactions={session.reactions.items}
       sendReaction={session.reactions.send}
       error={session.drawError || session.actionError} />
+  {:else if room.phase === 'reveal'}
+    <!-- everyone reading their own card: nothing else on the screen -->
+    <RevealScreen {room} secret={session.secret} secondsLeft={session.secondsLeft} />
   {:else}
     <WaitingRoom {session} />
   {/if}

@@ -289,7 +289,7 @@
 <!-- Wide screens: the stage (banner, picture, tools, all one width and sized to fit the window) on the
      left, and one sidebar on the right whose chat fills whatever height is left. -->
 <div
-  class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[max(20rem,calc(100dvh-17rem))_21rem] lg:justify-center lg:gap-6"
+  class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[max(20rem,calc(100dvh-18.5rem))_21rem] lg:justify-center lg:gap-6"
   style={dockHeight ? `padding-bottom:${dockHeight}px` : ''}>
   <section
     class="flex min-w-0 flex-col gap-3 {immersive
@@ -432,6 +432,18 @@
         {#if replaying}
           <Replay {store} players={room.players} onclose={() => (replaying = false)} />
         {/if}
+        <!-- on the picture, in the corner, so the row under it has room for the names and reactions -->
+        {#if looking}
+          <button
+            type="button"
+            id="replay-button"
+            aria-pressed={replaying}
+            on:click={() => (replaying = !replaying)}
+            class="absolute left-2 top-2 z-20 flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border-2 border-riso-ink bg-riso-paper/90 px-3 font-stamp text-sm transition hover:bg-white active:scale-[0.97]">
+            <span aria-hidden="true">{replaying ? '■' : '▶'}</span>
+            {replaying ? 'Stop' : 'Watch it drawn'}
+          </button>
+        {/if}
         <ReactionLayer {reactions} />
 
         {#if !immersive}
@@ -475,14 +487,6 @@
           </p>
         </div>
         {/if}
-        <button
-          type="button"
-          id="replay-button"
-          aria-pressed={replaying}
-          on:click={() => (replaying = !replaying)}
-          class="flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border-2 border-riso-ink bg-white/70 px-3 font-stamp text-sm transition hover:bg-white active:scale-[0.97]">
-          <span aria-hidden="true">▶</span> Watch it drawn
-        </button>
         {#if phase !== 'guess'}
           <div class="ml-auto"><ReactionBar react={sendReaction} /></div>
         {/if}

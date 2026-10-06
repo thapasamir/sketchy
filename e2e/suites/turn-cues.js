@@ -8,8 +8,9 @@ let fails = 0
 const ok = (n, c, x = '') => { if (!c) fails++; console.log(c ? 'PASS' : 'FAIL', n, x) }
 async function until(fn, ms = 8000) { const t = Date.now(); while (Date.now() - t < ms) { try { if (await fn()) return true } catch {} await wait(100) } return false }
 
-async function player(b, name, url = U + '/') {
-  const ctx = await b.createBrowserContext(); const p = await ctx.newPage(); await p.setViewport({ width: 1200, height: 950 })
+const PHONE = { width: 390, height: 844, deviceScaleFactor: 2, hasTouch: true, isMobile: true }
+async function player(b, name, url = U + '/', vp = { width: 1200, height: 950 }) {
+  const ctx = await b.createBrowserContext(); const p = await ctx.newPage(); await p.setViewport(vp)
   p.errs = []; p.on('pageerror', e => p.errs.push(e.message))
   await p.evaluateOnNewDocument(() => localStorage.setItem('sketchy:seen-how-to-play', 'true'))
   await p.goto(url, { waitUntil: 'networkidle0' })
@@ -21,10 +22,25 @@ const myTurn = p => p.$eval('#turn-banner', e => e.dataset.myTurn === 'true').ca
 ;(async () => {
   const b = await launch()
   const host = await player(b, 'Host'); const code = await text(host, '#room-code')
-  const bob = await player(b, 'Bob', `${U}/room/${code}`); const cara = await player(b, 'Cara', `${U}/room/${code}`)
+  const bob = await player(b, 'Bob', `${U}/room/${code}`); const cara = await player(b, 'Cara', `${U}/room/${code}`, PHONE)
   const all = [host, bob, cara]
   await wait(700); await click(bob, "I'M READY"); await click(cara, "I'M READY")
+
+  console.log('--- the sound and help buttons')
+  for (const [who, p] of [['on a computer', host], ['on a phone', cara]]) {
+    const where = await p.evaluate(() => { const c = document.querySelector('#sound-toggle'); const h = document.querySelector('header'); return { inHeader: !!h && h.contains(c), fixed: getComputedStyle(c.parentElement).position === 'fixed' } })
+    ok(`in the room they sit in the header, not floating over the page (${who})`, where.inHeader && !where.fixed, JSON.stringify(where))
+  }
+
   await until(() => host.$eval('#start-button', e => !e.disabled)); await click(host, 'START GAME')
+
+  console.log('--- everyone reads their card')
+  await Promise.all(all.map(p => p.waitForSelector('#secret-card', { timeout: 8000 })))
+  const seen = await Promise.all(all.map(async p => ({ room: !!(await p.$('#room-code')), players: !!(await p.$('#player-list')), card: !!(await p.$('#secret-role')) })))
+  ok('the card is the only thing on the screen: no room code, no player list', seen.every(s => s.card && !s.room && !s.players), JSON.stringify(seen))
+  const card = await cara.$eval('#secret-card', e => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, vh: innerHeight } })
+  ok('on a phone the whole card is on screen without scrolling', card.top >= 0 && card.bottom <= card.vh, JSON.stringify(card))
+  ok('and the countdown is on it', /Drawing starts in \d/.test(await text(cara, '#reveal-countdown') || ''))
 
   console.log('--- the first turn')
   ok('somebody is drawing', await until(async () => (await Promise.all(all.map(myTurn))).some(Boolean), 10000))

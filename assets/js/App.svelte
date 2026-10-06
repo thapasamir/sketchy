@@ -127,7 +127,7 @@
 </script>
 
 {#if view === 'lobby'}
-  <Lobby roomCode={seat.code} playerId={seat.playerId} onleave={() => leave()} ongone={reason => leave(reason)} />
+  <Lobby roomCode={seat.code} playerId={seat.playerId} onleave={() => leave()} ongone={reason => leave(reason)} onhelp={() => (showHelp = true)} />
 {:else if view === 'auth'}
   <Auth mode={authMode} on:authed={authed} on:back={home} />
 {:else if view === 'dashboard'}
@@ -136,7 +136,10 @@
   <Home {inviteCode} {notice} on:authed={authed} on:auth={openAuth} on:help={() => (showHelp = true)} />
 {/if}
 
-<Controls on:help={() => (showHelp = true)} />
+<!-- in the room they sit in its header (see Lobby.svelte); everywhere else, in the corner -->
+{#if view !== 'lobby'}
+  <Controls onhelp={() => (showHelp = true)} />
+{/if}
 {#if showHelp}
   <HowToPlay on:close={closeHelp} />
 {/if}
