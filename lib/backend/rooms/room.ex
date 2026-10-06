@@ -269,7 +269,9 @@ defmodule Backend.Rooms.Room do
         vote_ends_at: nil,
         guess_ends_at: nil,
         accused: nil,
-        result: nil
+        result: nil,
+        # what happened in each finished round, oldest first (see `Voting`), for the final screen
+        history: []
       }
 
       {:ok, %{room | phase: :reveal, game: game}}
@@ -772,7 +774,12 @@ defmodule Backend.Rooms.Room do
         do: for({id, score} <- room.scores, score == top, Map.has_key?(room.players, id), do: id),
         else: []
 
-    %{winner_ids: Enum.sort(winners), rounds_played: room.game.round}
+    %{
+      winner_ids: Enum.sort(winners),
+      rounds_played: room.game.round,
+      # how each round went, for the recap and the awards
+      rounds: Map.get(room.game, :history, [])
+    }
   end
 
   defp final_public(_room), do: nil

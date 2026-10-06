@@ -149,8 +149,29 @@ defmodule Backend.Rooms.Voting do
       points: points
     }
 
+    # what the final screen needs to tell the story of the game: no secrets are left by now
+    summary = %{
+      round: game.round,
+      outcome: outcome,
+      imposter_id: imposter,
+      word: result.word,
+      category: result.category,
+      accused: game.accused,
+      votes: game.votes,
+      points: points,
+      names: game.names
+    }
+
+    history = Map.get(game, :history, []) ++ [summary]
     scores = Map.merge(room.scores, points, fn _id, old, new -> old + new end)
-    {:ok, %{room | phase: :result, scores: scores, game: %{game | result: result}}}
+
+    {:ok,
+     %{
+       room
+       | phase: :result,
+         scores: scores,
+         game: game |> Map.put(:history, history) |> Map.put(:result, result)
+     }}
   end
 
   @doc "Someone left during the vote: their vote, and votes for them, no longer count."

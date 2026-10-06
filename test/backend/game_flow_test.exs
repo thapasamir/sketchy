@@ -231,6 +231,40 @@ defmodule Backend.GameFlowTest do
       assert Room.to_public(room).final.rounds_played == 2
     end
 
+    test "the final carries how each round went, oldest first, for the recap" do
+      game = new_game(2)
+      i1 = play_round(game)
+      await_round(2)
+      await_drawing(2)
+      i2 = play_round(game)
+
+      assert_receive {:room_updated, %{phase: :final}}, 3000
+      %{rounds: [first, second]} = Room.to_public(state(game.code)).final
+
+      assert [first.round, second.round] == [1, 2]
+      assert [first.imposter_id, second.imposter_id] == [i1, i2]
+      assert is_binary(first.word) and is_binary(first.category)
+      assert first.outcome in [:caught, :escaped, :guessed, :imposter_left]
+      assert is_map(first.points) and is_map(first.votes) and is_map(first.names)
+      # points in the recap add up to the scores
+      total =
+        Enum.reduce([first, second], %{}, &Map.merge(&2, &1.points, fn _, a, b -> a + b end))
+
+      assert total == state(game.code).scores
+    end
+
+    test "playing again starts the recap afresh" do
+      game = new_game(2)
+      play_round(game)
+      await_round(2)
+      await_drawing(2)
+      play_round(game)
+      assert_receive {:room_updated, %{phase: :final}}, 3000
+
+      :ok = Rooms.play_again(game.code, game.host)
+      assert state(game.code).game == nil
+    end
+
     test "no timer is left running at the final" do
       game = new_game(2)
       play_round(game)

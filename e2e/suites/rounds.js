@@ -132,6 +132,27 @@ const wrongAccusation = async (all, imposter, crew) => { await vote(crew[0], cre
   ok('the board shows 2 winners, highlighted', (await host.$$eval('#final-scores li[data-winner="true"]', e => e.length)) === 2)
   ok('and the correct totals', await host.$$eval('#final-scores li', els => els.map(e => Number(e.dataset.score)).sort().join(',')) === '0,2,2')
   ok('it says how many rounds were played', /after 2 rounds/.test(await text(host, '#final-banner')))
+  // the story of the game
+  const recapLines = await host.$$eval('#final-recap li', els => els.map(e => e.textContent.replace(/\s+/g, ' ').trim()))
+  ok('the recap has a line per round', recapLines.length === 2, recapLines.join(' | '))
+  ok('each says who the imposter was, the word, and how it went', recapLines[0].includes(r1.imposter.name) && recapLines[0].includes(word1) && /Got away/.test(recapLines[0]) && recapLines[1].includes(r2.imposter.name) && recapLines[1].includes(word2), recapLines.join(' | '))
+  const disguise = await host.$eval('[data-award="disguise"]', e => e.textContent.replace(/\s+/g, ' ')).catch(() => '')
+  ok('"Master of disguise" is shared by the two who got away', disguise.includes(r1.imposter.name) && disguise.includes(r2.imposter.name), disguise)
+  ok('everyone sees the same recap', (await Promise.all(all.map(p => p.$$eval('#final-recap li', e => e.length)))).every(n => n === 2))
+  ok('faces, not initials, beside the scores', (await host.$$eval('#final-scores [data-marker]', els => els.every(e => e.getAttribute('data-faced') === 'true'))))
+
+  // sharing the results as a picture
+  await host.evaluate(() => { window.__shared = null; navigator.canShare = () => true; navigator.share = async d => { const f = d.files[0]; window.__shared = { type: f.type, size: f.size, name: f.name, text: d.text } } })
+  await host.click('#share-results')
+  ok('where the phone can share files, the picture goes to its share sheet', await until(() => host.evaluate(() => !!window.__shared), 5000))
+  const shared = await host.evaluate(() => window.__shared)
+  ok('as a real PNG, with the result in the text', shared.type === 'image/png' && shared.size > 5000 && /Play Sketchy/.test(shared.text) && shared.text.includes(headline), JSON.stringify(shared))
+  ok('and says so', await until(async () => /Shared/.test(await text(host, '#share-note') || ''), 2000))
+  await bob.evaluate(() => { navigator.canShare = () => false })
+  await bob.click('#share-results')
+  ok('where it can\'t, the picture is saved instead', await until(async () => /Saved as a picture/.test(await text(bob, '#share-note') || ''), 5000), await text(bob, '#share-note'))
+  await host.screenshot({ path: shots + '/rd-final-recap.png', fullPage: true })
+
   ok('only the host can start again', !!(await host.$('#play-again-button')) && !(await bob.$('#play-again-button')) && !!(await bob.$('#final-wait')))
   ok('the others are told who they are waiting for', /Waiting for Host/.test(await text(bob, '#final-wait')))
   ok('no game controls are left on the final screen', (await Promise.all(all.map(async p => !(await p.$('#board')) && !(await p.$('[data-vote]')) && !(await p.$('#guess-input'))))).every(Boolean))
