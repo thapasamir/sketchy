@@ -6,6 +6,7 @@
   import GameScreen from '../components/GameScreen.svelte'
   import FinalScreen from '../components/FinalScreen.svelte'
   import Toasts from '../components/Toasts.svelte'
+  import ConnectionBanner from '../components/ConnectionBanner.svelte'
   import WaitingRoom from '../components/lobby/WaitingRoom.svelte'
   import { RoomSession } from '../lib/room-session.svelte.js'
 
@@ -23,6 +24,7 @@
   let room = $derived(session.room)
 </script>
 
+<ConnectionBanner state={session.connection} />
 <Toasts notices={session.toasts.items} />
 
 <main

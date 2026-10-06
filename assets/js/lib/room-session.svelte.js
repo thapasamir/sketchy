@@ -2,7 +2,8 @@
 // everything we can ask it to do. The page (Lobby.svelte) only shows what is in here.
 //
 // The server's room state is the source of truth; every update replaces it wholesale.
-import { joinRoom } from './socket.js'
+import { joinRoom, watchConnection, isConnected } from './socket.js'
+import { createConnection } from './connection.js'
 import { createStrokeStore } from './strokes.js'
 import { cuesFor } from './cues.js'
 import { noticesFor } from './notices.js'
@@ -27,6 +28,10 @@ export class RoomSession {
   actionError = $state('')
   // countdown while everyone reads their card
   secondsLeft = $state(0)
+  // is my own connection up? 'online' | 'offline' | 'back' (see lib/connection.js)
+  connection = $state('online')
+  #link = createConnection({ onChange: state => (this.connection = state) })
+  #stopWatching
 
   // the shared picture; lives here (not in the board) so strokes aren't lost between screens
   strokes = createStrokeStore()
@@ -107,6 +112,10 @@ export class RoomSession {
 
   connect() {
     document.addEventListener('visibilitychange', this.#onVisibility)
+    // the socket tells us when it drops and returns; the phone itself says so a moment earlier
+    this.#stopWatching = watchConnection(state => (state === 'lost' ? this.#link.lost() : this.#link.restored()))
+    window.addEventListener('offline', this.#onOffline)
+    window.addEventListener('online', this.#onOnline)
     this.#channel = joinRoom(this.#roomCode, this.#playerId, {
       onJoined: (room, secret, picture, vote) => {
         this.secret = secret
@@ -143,6 +152,10 @@ export class RoomSession {
     this.reactions.stop()
     this.#restoreTitle()
     document.removeEventListener('visibilitychange', this.#onVisibility)
+    window.removeEventListener('offline', this.#onOffline)
+    window.removeEventListener('online', this.#onOnline)
+    this.#stopWatching?.()
+    this.#link.stop()
     this.chat.leave()
     this.#channel?.push('leave', {})
     this.#channel?.leave()
@@ -220,6 +233,10 @@ export class RoomSession {
   }
 
   #onVisibility = () => !document.hidden && this.#restoreTitle()
+  #onOffline = () => this.#link.lost()
+  // The phone says it has a network again. If the socket never actually dropped, that is the end of
+  // it; if it did, its own "open" (when Phoenix reconnects) is what ends the banner.
+  #onOnline = () => (isConnected() ? this.#link.restored() : this.#link.networkUp())
 
   // --- asking the server to do things ---
 

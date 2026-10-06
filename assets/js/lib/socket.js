@@ -3,9 +3,25 @@ import { Socket } from 'phoenix'
 
 let socket
 
+// who wants to hear that the connection dropped or came back: callback('lost' | 'restored')
+const watchers = new Set()
+const tell = state => watchers.forEach(watcher => watcher(state))
+
+// is the socket open right now?
+export const isConnected = () => !!socket?.isConnected()
+
+export function watchConnection(watcher) {
+  watchers.add(watcher)
+  return () => watchers.delete(watcher)
+}
+
 function getSocket() {
   if (!socket) {
     socket = new Socket('/socket')
+    // Phoenix reconnects on its own; these only say what is happening
+    socket.onOpen(() => tell('restored'))
+    socket.onClose(() => tell('lost'))
+    socket.onError(() => tell('lost'))
     socket.connect()
   }
   return socket
