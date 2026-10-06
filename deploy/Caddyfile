@@ -1,6 +1,12 @@
 # Automatic HTTPS (Let's Encrypt). WebSockets are proxied without extra config.
 {$DOMAIN} {
 	encode zstd gzip
+
+	# Images and icons rarely change, so browsers may keep them for a week. The JS and CSS are
+	# left out on purpose: they are not fingerprinted, so a long cache would serve stale code.
+	@images path /images/* /favicon.ico
+	header @images Cache-Control "public, max-age=604800"
+
 	# The app counts rate limits per visitor, so it needs their real address. This header is set
 	# here, replacing anything the visitor sent, and the app is reachable only through this proxy.
 	reverse_proxy app:8080 {
