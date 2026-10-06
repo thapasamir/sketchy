@@ -40,6 +40,12 @@ defmodule Backend.Rooms.Room do
   @max_points_per_stroke 3_000
   @max_strokes_per_turn 30
   @max_strokes 600
+  # across the whole game: far more than any real game draws (a full minute of nonstop scribbling
+  # is about 1,500 points), but it keeps one scripted client from growing a room without end
+  @max_points_per_room 60_000
+  # a point is kept as one small integer (x and y in ten-thousandths) rather than a list of two
+  # floats: about a fifth of the memory
+  @scale 10_000
 
   defstruct code: nil,
             host_id: nil,
@@ -421,7 +427,7 @@ defmodule Backend.Rooms.Room do
         turn: game.turn.n,
         color: game.colors[player_id],
         size: size,
-        points: [point],
+        points: [pack(point)],
         count: 1
       }
 
@@ -445,10 +451,11 @@ defmodule Backend.Rooms.Room do
          {:ok, id} <- parse_id(params),
          {:ok, stroke} <- open_stroke(room, id),
          {:ok, clean} <- clean_points(points),
-         :ok <- check_stroke_length(stroke, clean) do
+         :ok <- check_stroke_length(stroke, clean),
+         :ok <- check_room_points(room, clean) do
       stroke = %{
         stroke
-        | points: Enum.reverse(clean, stroke.points),
+        | points: Enum.reverse(Enum.map(clean, &pack/1), stroke.points),
           count: stroke.count + length(clean)
       }
 
@@ -493,7 +500,7 @@ defmodule Backend.Rooms.Room do
         player_id: s.player_id,
         color: s.color,
         size: s.size,
-        points: Enum.reverse(s.points)
+        points: s.points |> Enum.reverse() |> Enum.map(&unpack/1)
       }
     end)
   end
@@ -535,10 +542,29 @@ defmodule Backend.Rooms.Room do
     this_turn = game.strokes |> Enum.take_while(&(&1.turn == game.turn.n)) |> length()
 
     cond do
-      this_turn >= @max_strokes_per_turn -> {:error, :too_many_strokes}
-      length(game.strokes) >= @max_strokes -> {:error, :canvas_full}
-      true -> :ok
+      this_turn >= @max_strokes_per_turn ->
+        {:error, :too_many_strokes}
+
+      length(game.strokes) >= @max_strokes ->
+        {:error, :canvas_full}
+
+      Enum.reduce(game.strokes, 0, &(&1.count + &2)) >= @max_points_per_room ->
+        {:error, :canvas_full}
+
+      true ->
+        :ok
     end
+  end
+
+  # (already clamped to 0..1 with 4 decimals, so these are exact)
+  defp pack([x, y]), do: round(x * @scale) * (@scale + 1) + round(y * @scale)
+
+  defp unpack(packed),
+    do: [div(packed, @scale + 1) / @scale, rem(packed, @scale + 1) / @scale]
+
+  defp check_room_points(%{game: game}, clean) do
+    total = Enum.reduce(game.strokes, 0, &(&1.count + &2))
+    if total + length(clean) <= @max_points_per_room, do: :ok, else: {:error, :canvas_full}
   end
 
   defp check_stroke_length(stroke, clean) do

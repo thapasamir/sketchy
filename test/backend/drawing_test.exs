@@ -391,6 +391,35 @@ defmodule Backend.Rooms.DrawingTest do
       assert {:error, :stroke_too_long} = points(room, "p2", "a", List.duplicate([0.1, 0.1], 80))
     end
 
+    test "a whole game's drawing is capped, however it is split into strokes" do
+      fill = fn room, id ->
+        {:ok, room, _} = start(room, "p2", id)
+
+        # 1 + 37 * 80 + 39 = 3,000 points, a full stroke
+        room =
+          Enum.reduce(1..37, room, fn _, room ->
+            {:ok, room, _} = points(room, "p2", id, List.duplicate([0.1, 0.1], 80))
+            room
+          end)
+
+        {:ok, room, _} = points(room, "p2", id, List.duplicate([0.1, 0.1], 39))
+        {:ok, room, _} = finish(room, "p2", id)
+        room
+      end
+
+      # 20 full strokes is the 60,000-point cap
+      room = Enum.reduce(1..20, drawing(), fn i, room -> fill.(room, "s#{i}") end)
+      assert {:error, :canvas_full} = start(room, "p2", "one-more")
+    end
+
+    test "points come back exactly as they went in" do
+      {:ok, room, _} = start(drawing(), "p2", "a", 0.0, 1.0)
+      {:ok, room, _} = points(room, "p2", "a", [[0.1235, 0.9999], [1.0, 0.0]])
+
+      assert [%{points: points}] = Room.strokes_public(room)
+      assert points == [[0.0, 1.0], [0.1235, 0.9999], [1.0, 0.0]]
+    end
+
     test "points need a stroke that was started and is still open" do
       room = drawing()
       assert {:error, :no_such_stroke} = points(room, "p2", "ghost", [[0.1, 0.1]])
