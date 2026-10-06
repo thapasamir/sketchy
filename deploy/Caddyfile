@@ -3,7 +3,7 @@
 	encode zstd gzip
 
 	# Images and icons rarely change, so browsers may keep them for a week. The JS and CSS are
-	# left out on purpose: they are not fingerprinted, so a long cache would serve stale code.
+	# left out on purpose: the app serves them fingerprinted (?vsn=d) with its own long cache.
 	@images path /images/* /favicon.ico
 	header @images Cache-Control "public, max-age=604800"
 

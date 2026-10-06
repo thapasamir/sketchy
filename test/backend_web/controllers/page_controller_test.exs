@@ -5,7 +5,7 @@ defmodule BackendWeb.PageControllerTest do
   for path <- ["/", "/room/ABCD"] do
     test "GET #{path} serves the app shell", %{conn: conn} do
       conn = get(conn, unquote(path))
-      assert html_response(conn, 200) =~ ~s(<script src="/assets/app.js">)
+      assert html_response(conn, 200) =~ ~s(<script defer src="/assets/app.js">)
     end
   end
 
