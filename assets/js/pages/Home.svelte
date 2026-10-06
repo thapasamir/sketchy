@@ -11,6 +11,9 @@
   const dispatch = createEventDispatcher()
 
   // set when someone opened an invite link like /room/ABCD
+  // who is already signed in, and the room they are still in, so the landing page can offer both
+  export let user = null
+  export let seat = null
   export let inviteCode = ''
   export let notice = '' // e.g. "Your session expired"
 
@@ -56,10 +59,26 @@
   <div class="mb-8"><HomeScene /></div>
 
   <div class="flex w-full max-w-sm flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:gap-5">
-    <Button variant="pink" class="sm:min-w-52" disabled={busy} on:click={playAsGuest}>
-      {busy ? 'One sec…' : 'Play as Guest'}
-    </Button>
-    <Button class="sm:min-w-52" on:click={() => dispatch('auth', 'login')}>Log in / Sign up</Button>
+    {#if user}
+      {#if seat}
+        <Button id="home-rejoin" variant="pink" class="sm:min-w-52" on:click={() => dispatch('rejoin')}>
+          Back to room {seat.code}
+        </Button>
+      {/if}
+      <Button id="home-continue" variant={seat ? 'outline' : 'pink'} class="sm:min-w-52" on:click={() => dispatch('continue')}>
+        Continue as {user.userType === 'registered' ? user.username : user.name || 'guest'}
+      </Button>
+      {#if !seat}
+        <Button id="home-switch" class="sm:min-w-52" on:click={() => (user.userType === 'registered' ? dispatch('logout') : dispatch('auth', 'login'))}>
+          {user.userType === 'registered' ? 'Log out' : 'Log in / Sign up'}
+        </Button>
+      {/if}
+    {:else}
+      <Button variant="pink" class="sm:min-w-52" disabled={busy} on:click={playAsGuest}>
+        {busy ? 'One sec…' : 'Play as Guest'}
+      </Button>
+      <Button class="sm:min-w-52" on:click={() => dispatch('auth', 'login')}>Log in / Sign up</Button>
+    {/if}
   </div>
 
   <p class="mt-4 font-stamp text-sm text-riso-muted">Free · 3 to 8 players · phones welcome</p>

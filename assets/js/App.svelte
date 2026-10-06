@@ -31,12 +31,14 @@
 
   // 'home' (new visitor) | 'auth' | 'dashboard' (signed in) | 'lobby'
   let view
-  if (seat && (!pathCode || pathCode === seat.code)) {
+  // The base address is always the landing page, whoever is looking (it then offers the way back
+  // into a room or the dashboard). A room's own address, or an invite link, goes straight in.
+  if (seat && pathCode === seat.code) {
     view = 'lobby'
   } else {
-    seat = null
+    if (pathCode) seat = null
     inviteCode = pathCode
-    view = user ? 'dashboard' : 'home'
+    view = pathCode && user ? 'dashboard' : 'home'
   }
 
   // the home page keeps the title it was served with, which is the one search engines show
@@ -75,8 +77,15 @@
     return () => window.removeEventListener('popstate', onPop)
   })
 
+  // (a fresh load of the base address shows the landing page; mid-visit, "back" means the dashboard)
   function home() {
     view = user ? 'dashboard' : 'home'
+  }
+
+  // from the landing page, back to the room this browser is still sitting in
+  function rejoin() {
+    history.pushState({}, '', `/room/${seat.code}`)
+    view = 'lobby'
   }
 
   function authed({ detail }) {
@@ -133,7 +142,7 @@
 {:else if view === 'dashboard'}
   <Dashboard {user} {inviteCode} {notice} on:enter={enter} on:auth={openAuth} on:logout={() => signOut()} />
 {:else}
-  <Home {inviteCode} {notice} on:authed={authed} on:auth={openAuth} on:help={() => (showHelp = true)} />
+  <Home {user} {seat} {inviteCode} {notice} on:authed={authed} on:auth={openAuth} on:help={() => (showHelp = true)} on:continue={() => (view = 'dashboard')} on:rejoin={rejoin} on:logout={() => signOut()} />
 {/if}
 
 <!-- in the room they sit in its header (see Lobby.svelte); everywhere else, in the corner -->
