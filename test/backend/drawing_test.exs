@@ -356,7 +356,7 @@ defmodule Backend.Rooms.DrawingTest do
       room = drawing()
       bad_size = fn size -> start(room, "p2", "a", 0.5, 0.5, size) end
 
-      for size <- [0, 4, -1, "2", nil, 2.5],
+      for size <- [0, 6, -1, "2", nil, 2.5],
           do: assert({:error, :invalid_event} = bad_size.(size))
 
       assert {:error, :invalid_event} = start(room, "p2", "", 0.5, 0.5)

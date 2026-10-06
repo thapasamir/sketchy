@@ -191,7 +191,7 @@ defmodule Backend.Rooms.RoundsTest do
 
     test "the winner is whoever has the top score" do
       public = Room.to_public(final_room(%{"p0" => 2, "p1" => 5, "p2" => 3}))
-      assert public.final == %{winner_ids: ["p1"], rounds_played: 1}
+      assert %{winner_ids: ["p1"], rounds_played: 1} = public.final
     end
 
     test "a tie shares the win" do
