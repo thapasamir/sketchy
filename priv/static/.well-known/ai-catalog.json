@@ -6,11 +6,17 @@
   },
   "entries": [
     {
-      "identifier": "https://sketchy.sakriitech.com/llms.txt",
+      "identifier": "urn:air:sakriitech:sketchy:llms-txt",
       "displayName": "Sketchy llms.txt",
       "description": "Plain-language overview of Sketchy, a free multiplayer imposter drawing game, with links to its public pages.",
-      "mediaType": "text/markdown",
-      "url": "https://sketchy.sakriitech.com/llms.txt"
+      "type": "text/markdown",
+      "url": "https://sketchy.sakriitech.com/llms.txt",
+      "representativeQueries": [
+        "What is Sketchy?",
+        "How do you play the Sketchy imposter drawing game?",
+        "Free online drawing game to play with friends",
+        "How many players can join a Sketchy game?"
+      ]
     }
   ]
 }
