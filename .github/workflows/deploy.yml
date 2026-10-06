@@ -76,6 +76,9 @@ jobs:
   deploy:
     name: Deploy to server
     needs: build
+    permissions:
+      contents: read
+      packages: read
     runs-on: ubuntu-latest
     concurrency: deploy-group
     steps:
@@ -94,7 +97,7 @@ jobs:
         env:
           IMAGE: ${{ needs.build.outputs.image }}
           GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
