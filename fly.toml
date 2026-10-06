@@ -3,7 +3,7 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'sketchymain'
+app = 'playsketchy'
 primary_region = 'fra'
 kill_signal = 'SIGTERM'
 
@@ -12,7 +12,7 @@ kill_signal = 'SIGTERM'
   release_command = '/app/bin/migrate'
 
 [env]
-  PHX_HOST = 'sketchymain.fly.dev'
+  PHX_HOST = 'playsketchy.fly.dev'
   POOL_SIZE = '5'
   PORT = '8080'
 
