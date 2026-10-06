@@ -147,6 +147,16 @@
     lastTick = secondsLeft
   }
 
+  // --- the vote, pinned to the bottom on a phone ---
+  //
+  // (Someone only watching has no vote to cast, so they keep the plain panel in the page.) The page
+  // gets as much room at the bottom as the dock takes, so nothing ends up hidden behind it, and the
+  // floating sound and help buttons ride above it.
+  let dockHeight = 0
+  $: voteDock = phase === 'voting' && narrow && !iAmWatching
+  $: if (!voteDock) dockHeight = 0
+  $: if (typeof document !== 'undefined') document.documentElement.style.setProperty('--dock-h', `${dockHeight}px`)
+
   // "Time to vote!" shows once as the vote opens
   const SPLASH_MS = 1800
   let splash = false
@@ -210,7 +220,10 @@
     clearInterval(ticker)
     clearTimeout(splashTimer)
     spotlightTimers.forEach(clearTimeout)
-    if (typeof document !== 'undefined') document.body.style.overflow = ''
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = ''
+      document.documentElement.style.removeProperty('--dock-h')
+    }
   })
 
   function onKey(event) {
@@ -227,7 +240,9 @@
 
 <!-- Wide screens: the stage (banner, picture, tools, all one width and sized to fit the window) on the
      left, and one sidebar on the right whose chat fills whatever height is left. -->
-<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[max(20rem,calc(100dvh-17rem))_21rem] lg:justify-center lg:gap-6">
+<div
+  class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[max(20rem,calc(100dvh-17rem))_21rem] lg:justify-center lg:gap-6"
+  style={dockHeight ? `padding-bottom:${dockHeight}px` : ''}>
   <section
     class="flex min-w-0 flex-col gap-3 {immersive
       ? 'immersive-board animate-fade fixed inset-0 z-40 !gap-2 bg-riso-paper'
@@ -450,7 +465,12 @@
        needs an answer from you (the vote, the guess, the result) at the top, then your card and
        the players, and the chat taking all the height that is left, so nothing needs scrolling. -->
   <aside id="sidebar" class="flex flex-col gap-4 lg:h-[calc(100dvh-7rem)] lg:min-h-[30rem] lg:gap-3 lg:overflow-y-auto lg:pr-1">
-    {#if phase === 'voting'}
+    {#if phase === 'voting' && voteDock}
+      <!-- on a phone the vote is pinned to the bottom, so the picture stays in view while you choose -->
+      <div id="vote-dock" bind:clientHeight={dockHeight} class="fixed inset-x-0 bottom-0 z-20">
+        <VotePanel dock {room} {playerId} {vote} {castVote} {focus} look={toggleFocus} />
+      </div>
+    {:else if phase === 'voting'}
       <div class="order-1 lg:shrink-0"><VotePanel {room} {playerId} {vote} {castVote} {focus} look={toggleFocus} showWatchers={!narrow} /></div>
     {:else if phase === 'guess'}
       <div class="order-1 lg:shrink-0"><GuessPanel {room} {playerId} {secret} {submitGuess} /></div>

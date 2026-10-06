@@ -9,7 +9,8 @@
 </script>
 
 <!-- Always within reach: sound on/off, and the rules. Fixed to the corner, out of the way of play. -->
-<div class="fixed bottom-4 right-4 z-30 flex gap-2" style="margin-bottom: env(safe-area-inset-bottom)">
+<!-- (--dock-h: when the vote is pinned to the bottom of a phone, these ride above it) -->
+<div class="fixed bottom-4 right-4 z-30 flex gap-2" style="margin-bottom: calc(env(safe-area-inset-bottom) + var(--dock-h, 0px))">
   <button
     type="button"
     id="sound-toggle"

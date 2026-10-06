@@ -28,7 +28,8 @@
 
   // stay at the newest message, unless the reader has scrolled up to read older ones
   let stick = true
-  const onScroll = () => (stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40)
+  // (a scroll event can arrive as the chat is being taken off the page, when there is no list left)
+  const onScroll = () => log && (stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40)
   // (afterUpdate already runs once the new messages are on the page; calling tick() here would
   // schedule another update, and so another afterUpdate, forever)
   afterUpdate(() => {

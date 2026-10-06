@@ -13,6 +13,11 @@
   export let look = () => {}
   // on a phone the players list (with its own "watching" line) sits under the vote instead
   export let showWatchers = false
+  // on a phone the panel is pinned to the bottom of the screen, so the picture stays in view while
+  // you choose; it can be folded down to just its title to see more of the picture
+  export let dock = false
+  let open = true
+  $: folded = dock && !open
 
   // Only the people playing the round vote and are voted for. Someone who arrived mid-game is
   // watching: they can see the vote happen, but have no vote.
@@ -29,9 +34,26 @@
 </script>
 
 <!-- red and pink, unlike everything else on the screen, so the vote can't be missed -->
-<Card id="vote-panel" class="animate-rise !border-riso-stamp !bg-riso-pink/10 !p-4 lg:!p-3">
-  <div class="-mx-4 -mt-4 mb-3 bg-riso-stamp px-4 py-1 font-stamp text-xs uppercase tracking-widest text-white lg:-mx-3 lg:-mt-3">
-    Vote now
+<Card
+  id="vote-panel"
+  data-dock={dock}
+  class="!border-riso-stamp {dock
+    ? '!rounded-b-none !border-x-0 !border-b-0 !bg-[#fbe6f1] !p-3 !pb-[max(0.75rem,env(safe-area-inset-bottom))] !shadow-[0_-8px_24px_rgb(0_0_0/0.14)]'
+    : 'animate-rise !bg-riso-pink/10 !p-4 lg:!p-3'}">
+  <div class="{dock ? '-mx-3 -mt-3' : '-mx-4 -mt-4 lg:-mx-3 lg:-mt-3'} {folded ? '' : 'mb-3'} bg-riso-stamp font-stamp text-xs uppercase tracking-widest text-white">
+    {#if dock}
+      <button
+        type="button"
+        id="vote-dock-toggle"
+        aria-expanded={open}
+        on:click={() => (open = !open)}
+        class="flex min-h-9 w-full cursor-pointer items-center justify-between px-3 py-1 uppercase tracking-widest">
+        <span>Vote now</span>
+        <span>{open ? 'Hide ▾' : 'Show ▴'}</span>
+      </button>
+    {:else}
+      <div class="px-4 py-1 lg:px-3">Vote now</div>
+    {/if}
   </div>
   <div class="flex items-baseline justify-between gap-3">
     <h3 class="font-display text-lg">Who is the imposter?</h3>
@@ -44,12 +66,18 @@
     </p>
   {:else}
     <!-- what to do, before the list, in the order you do it -->
-    <ol id="vote-steps" class="mb-3 mt-1 flex flex-col gap-0.5 font-stamp text-xs text-riso-muted">
-      <li><b class="text-riso-ink">1.</b> Tap a name to see only what they drew.</li>
-      <li><b class="text-riso-ink">2.</b> Press <b class="text-riso-ink">Vote</b> for the one who doesn't fit the word.</li>
-    </ol>
+    {#if dock}
+      <p id="vote-steps" class="mb-2 font-stamp text-xs text-riso-muted" class:hidden={folded}>
+        Tap a name to see their drawing, then press <b class="text-riso-ink">Vote</b>.
+      </p>
+    {:else}
+      <ol id="vote-steps" class="mb-3 mt-1 flex flex-col gap-0.5 font-stamp text-xs text-riso-muted">
+        <li><b class="text-riso-ink">1.</b> Tap a name to see only what they drew.</li>
+        <li><b class="text-riso-ink">2.</b> Press <b class="text-riso-ink">Vote</b> for the one who doesn't fit the word.</li>
+      </ol>
+    {/if}
 
-    <div class="flex flex-col gap-1.5">
+    <div class="flex flex-col gap-1.5 {dock ? 'max-h-[27dvh] overflow-y-auto overscroll-contain' : ''}" class:hidden={folded}>
       {#each candidates as player (player.id)}
         {@const mine = vote === player.id}
         {@const looking = focus === player.id}
@@ -92,7 +120,7 @@
       {/each}
     </div>
 
-    <p id="vote-status" class="mt-3 font-stamp text-xs text-riso-muted">
+    <p id="vote-status" class="mt-3 font-stamp text-xs text-riso-muted" class:hidden={folded}>
       {#if vote}
         <span id="vote-waiting">{waiting.length ? `Waiting for ${waitingText}.` : 'Everyone has voted.'}</span>
         You can change your vote until time runs out.
