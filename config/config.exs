@@ -16,6 +16,12 @@ config :backend,
 config :backend, :rate_limits, enabled: true, scale: 1, seats_per_ip: 24
 config :backend, :max_rooms, 100
 
+# Password hashing. The library's default uses 64 MB for every login, which is a lot on a small
+# machine; this is 16 MB (m_cost is a power of two, in KiB), on one thread, with the time cost kept
+# at 3: still within the usual guidance for Argon2id, and old hashes keep working because each
+# one records the settings it was made with.
+config :argon2_elixir, t_cost: 3, m_cost: 14, parallelism: 1
+
 # Configure the endpoint
 config :backend, BackendWeb.Endpoint,
   url: [host: "localhost"],
