@@ -121,7 +121,7 @@
         <p class="mt-1 text-sm">Draw one part of it, not the whole thing. Be clear to your friends, vague to the imposter.</p>
       </div>
       <div class="border-2 border-dashed border-riso-pink bg-riso-pink/5 p-3">
-        <div class="font-stamp text-xs uppercase tracking-widest text-riso-pink">If you're the imposter</div>
+        <div class="font-stamp text-xs uppercase tracking-widest text-riso-pink-ink">If you're the imposter</div>
         <p class="mt-1 text-sm">Watch the first drawer, then blend in. Your hint and the category are real clues.</p>
       </div>
     </div>

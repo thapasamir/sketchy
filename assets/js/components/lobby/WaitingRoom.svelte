@@ -99,7 +99,7 @@
           <span>Chat</span>
           <span class="flex items-center gap-2">
             {#if unread > 0}
-              <span id="chat-unread" class="rounded-full bg-riso-pink px-2.5 py-0.5 font-stamp text-xs text-white">{unread} new</span>
+              <span id="chat-unread" class="rounded-full bg-riso-stamp px-2.5 py-0.5 font-stamp text-xs text-white">{unread} new</span>
             {/if}
             <span aria-hidden="true" class="font-stamp text-sm transition {open ? 'rotate-180' : ''}">▾</span>
           </span>

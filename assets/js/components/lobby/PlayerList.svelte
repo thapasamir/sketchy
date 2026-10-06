@@ -55,7 +55,7 @@
         {/if}
         <span class="min-w-0 break-words">
           {player.name}
-          {#if player.id === hostId}<span class="font-stamp text-xs text-riso-pink mix-blend-multiply">(Host)</span>{/if}
+          {#if player.id === hostId}<span class="font-stamp text-xs text-riso-pink-ink">(Host)</span>{/if}
           {#if player.id === playerId}<span class="font-stamp text-xs text-riso-muted">(You)</span>{/if}
           {#if !player.connected}<span class="font-stamp text-xs text-riso-muted">(away)</span>{/if}
           {#if player.ready && player.id !== hostId}<span class="font-stamp text-xs text-riso-blue">(ready)</span>{/if}

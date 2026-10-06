@@ -21,7 +21,7 @@
     style="left:{clamp(start[0] * 100, 14, 86)}%; top:{clamp(start[1] * 100 - 3, 12, 100)}%">
     <span
       style="animation-delay:{TIMING.nameStart}ms"
-      class="inline-block -rotate-6 animate-stamp whitespace-nowrap rounded-[2px] border-2 border-riso-pink bg-white/85 px-2 py-0.5 font-display text-sm uppercase tracking-wider text-riso-pink shadow-[2px_2px_0_rgb(0_0_0/0.15)]">
+      class="inline-block -rotate-6 animate-stamp whitespace-nowrap rounded-[2px] border-2 border-riso-pink bg-white/85 px-2 py-0.5 font-display text-sm uppercase tracking-wider text-riso-pink-ink shadow-[2px_2px_0_rgb(0_0_0/0.15)]">
       Imposter
     </span>
   </div>

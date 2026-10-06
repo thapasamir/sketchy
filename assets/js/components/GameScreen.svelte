@@ -163,6 +163,28 @@
   $: if (!voteDock) dockHeight = 0
   $: if (typeof document !== 'undefined') document.documentElement.style.setProperty('--dock-h', `${dockHeight}px`)
 
+  // Chat during the vote is further down the page than the picture and the vote, so say when
+  // others have written something you haven't had in view.
+  let chatInView = false
+  let seenMessages = 0
+  $: if (!voteDock || chatInView) seenMessages = messages.length
+  $: unread = voteDock ? messages.slice(seenMessages).filter(m => m.player_id !== playerId).length : 0
+  let chatWatcher
+  $: if (typeof IntersectionObserver !== 'undefined') watchChat(voteDock)
+  function watchChat(on) {
+    chatWatcher?.disconnect()
+    chatInView = false
+    if (!on) return
+    // (the chat is on the page a moment after the vote opens)
+    requestAnimationFrame(() => {
+      const el = document.getElementById('chat-panel')
+      if (!el) return
+      chatWatcher = new IntersectionObserver(([entry]) => (chatInView = entry.isIntersecting), { threshold: 0.4 })
+      chatWatcher.observe(el)
+    })
+  }
+  const openChat = () => document.getElementById('chat-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
   // "Time to vote!" shows once as the vote opens
   const SPLASH_MS = 1800
   let splash = false
@@ -243,6 +265,7 @@
     clearInterval(ticker)
     clearTimeout(splashTimer)
     clearTimeout(turnSplashTimer)
+    chatWatcher?.disconnect()
     spotlightTimers.forEach(clearTimeout)
     if (typeof document !== 'undefined') {
       document.body.style.overflow = ''
@@ -294,7 +317,7 @@
               <!-- waiting for your turn? say how close it is, right where you are looking -->
               {#if !myTurn && !iAmWatching}
                 {#if meNext}
-                  <span id="turn-next" data-me="true" class="ml-1 rounded-[2px] bg-riso-pink px-1.5 py-0.5 text-white">You're up next</span>
+                  <span id="turn-next" data-me="true" class="ml-1 rounded-[2px] bg-riso-stamp px-1.5 py-0.5 text-white">You're up next</span>
                 {:else if upNext}
                   <span id="turn-next" class="ml-1 text-riso-ink">· Next: {upNext.name}</span>
                 {/if}
@@ -368,7 +391,7 @@
       <div id="secret-bar" class="flex shrink-0 items-center justify-between gap-3 border-2 border-riso-ink/70 bg-white/60 px-3 py-2 lg:hidden">
         {#if secret.role === 'imposter'}
           <span class="min-w-0 truncate text-sm">
-            <span class="font-display text-riso-pink mix-blend-multiply">Imposter</span>
+            <span class="font-display text-riso-pink-ink">Imposter</span>
             <span class="font-stamp text-xs text-riso-muted">clue:</span>
             {secret.hint}
           </span>
@@ -512,7 +535,7 @@
     {#if phase === 'voting' && voteDock}
       <!-- on a phone the vote is pinned to the bottom, so the picture stays in view while you choose -->
       <div id="vote-dock" bind:clientHeight={dockHeight} class="fixed inset-x-0 bottom-0 z-20">
-        <VotePanel dock {room} {playerId} {vote} {castVote} {focus} look={toggleFocus} />
+        <VotePanel dock {room} {playerId} {vote} {castVote} {focus} look={toggleFocus} {unread} {openChat} />
       </div>
     {:else if phase === 'voting'}
       <div class="order-1 lg:shrink-0"><VotePanel {room} {playerId} {vote} {castVote} {focus} look={toggleFocus} showWatchers={!narrow} /></div>

@@ -16,6 +16,9 @@
   // on a phone the panel is pinned to the bottom of the screen, so the picture stays in view while
   // you choose; it can be folded down to just its title to see more of the picture
   export let dock = false
+  // messages in the chat that you haven't had in view, and how to get to it (shown in the dock)
+  export let unread = 0
+  export let openChat = () => {}
   let open = true
   $: folded = dock && !open
 
@@ -42,15 +45,24 @@
     : 'animate-rise !bg-riso-pink/10 !p-4 lg:!p-3'}">
   <div class="{dock ? '-mx-3 -mt-3' : '-mx-4 -mt-4 lg:-mx-3 lg:-mt-3'} {folded ? '' : 'mb-3'} bg-riso-stamp font-stamp text-xs uppercase tracking-widest text-white">
     {#if dock}
-      <button
-        type="button"
-        id="vote-dock-toggle"
-        aria-expanded={open}
-        on:click={() => (open = !open)}
-        class="flex min-h-9 w-full cursor-pointer items-center justify-between px-3 py-1 uppercase tracking-widest">
-        <span>Vote now</span>
-        <span>{open ? 'Hide ▾' : 'Show ▴'}</span>
-      </button>
+      <div class="flex min-h-9 items-center gap-2 px-3 py-1 uppercase tracking-widest">
+        <button type="button" id="vote-dock-toggle" aria-expanded={open} on:click={() => (open = !open)} class="flex-1 cursor-pointer self-stretch text-left uppercase tracking-widest">
+          Vote now
+        </button>
+        <!-- the chat is further down the page, and this is where people argue their case -->
+        {#if unread > 0}
+          <button
+            type="button"
+            id="vote-dock-chat"
+            on:click={openChat}
+            class="animate-pop cursor-pointer rounded-full bg-white px-2.5 py-0.5 normal-case tracking-normal text-riso-stamp">
+            {unread} new in chat
+          </button>
+        {/if}
+        <button type="button" tabindex="-1" aria-hidden="true" on:click={() => (open = !open)} class="cursor-pointer self-stretch uppercase tracking-widest">
+          {open ? 'Hide ▾' : 'Show ▴'}
+        </button>
+      </div>
     {:else}
       <div class="px-4 py-1 lg:px-3">Vote now</div>
     {/if}

@@ -87,7 +87,7 @@
               style="animation-delay:{VOTES_AT + 100 + i * STEP}ms"
               class="block animate-fade font-stamp text-[0.7rem] leading-tight text-riso-muted">
               {#if votedFor}
-                voted <b class={votedFor === result.imposter_id ? 'text-riso-pink' : 'text-riso-ink'}>{name(votedFor)}</b>
+                voted <b class={votedFor === result.imposter_id ? 'text-riso-pink-ink' : 'text-riso-ink'}>{name(votedFor)}</b>
                 {#if votedFor === result.imposter_id}<span aria-label="correct">✓</span>{/if}
               {:else}
                 didn't vote

@@ -6,6 +6,8 @@
 @theme {
   --color-riso-paper: #F4F2EC;
   --color-riso-pink: #FF48B0;
+  /* the pink to use for small TEXT: the bright one is only 2.8:1 on the paper, this is 4.8:1 */
+  --color-riso-pink-ink: #CC0E74;
   --color-riso-blue: #0078BF;
   --color-riso-yellow: #FFE800;
   --color-riso-ink: #263A6E;
