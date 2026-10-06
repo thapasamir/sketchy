@@ -6,6 +6,8 @@ services:
     env_file: .env
     environment:
       PORT: "8080"
+      # the header Caddy sets to the visitor's address (see Caddyfile)
+      CLIENT_IP_HEADER: x-real-ip
     expose:
       - "8080"
     logging:

@@ -1,5 +1,9 @@
 # Automatic HTTPS (Let's Encrypt). WebSockets are proxied without extra config.
 {$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy app:8080
+	# The app counts rate limits per visitor, so it needs their real address. This header is set
+	# here, replacing anything the visitor sent, and the app is reachable only through this proxy.
+	reverse_proxy app:8080 {
+		header_up X-Real-IP {remote_host}
+	}
 }
