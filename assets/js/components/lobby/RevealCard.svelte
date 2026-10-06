@@ -16,10 +16,10 @@
 
 <Card id="secret-card" class="flex min-h-[min(30rem,70dvh)] animate-flip-in flex-col justify-center gap-4 text-center">
   {#if secret}
-    <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
+    <div class="font-stamp text-sm text-riso-muted">
       Round {room.round} of {room.rounds}
     </div>
-    <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
+    <div class="font-stamp text-sm text-riso-muted">
       Category
       <span id="secret-category" class="ml-1 text-riso-ink">{secret.category}</span>
     </div>
@@ -66,7 +66,7 @@
     {/if}
   </div>
 
-  <p id="reveal-countdown" class="font-stamp text-sm uppercase tracking-widest text-riso-muted">
+  <p id="reveal-countdown" class="font-stamp text-sm text-riso-muted">
     Drawing starts in {secondsLeft}s
   </p>
 </Card>

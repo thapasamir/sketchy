@@ -27,7 +27,7 @@
 
 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
   <div class="min-w-0">
-    <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">Room code · share it with friends</div>
+    <div class="font-stamp text-sm text-riso-muted">Room code · share it with friends</div>
     <div
       id="room-code"
       class="mt-1 pl-[0.1em] font-display text-5xl leading-none tracking-[0.2em] text-riso-pink mix-blend-multiply sm:text-6xl">

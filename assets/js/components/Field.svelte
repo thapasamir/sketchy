@@ -15,7 +15,7 @@
 </script>
 
 <div class={className}>
-  <label for={id} class="mb-2 block font-stamp text-sm uppercase tracking-widest">{label}</label>
+  <label for={id} class="mb-2 block font-stamp text-sm">{label}</label>
   <input
     {id}
     {type}

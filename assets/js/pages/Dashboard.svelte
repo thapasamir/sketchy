@@ -112,14 +112,14 @@
           </Button>
         </div>
 
-        <div class="order-2 my-6 flex items-center gap-3 font-stamp text-xs uppercase tracking-widest text-riso-muted">
+        <div class="order-2 my-6 flex items-center gap-3 font-stamp text-sm text-riso-muted">
           <span class="h-px flex-1 bg-riso-line"></span>
           {inviteCode ? 'or start your own' : 'or join a friend'}
           <span class="h-px flex-1 bg-riso-line"></span>
         </div>
 
         <div class={inviteCode ? 'order-1' : 'order-3'}>
-          <label for="code" class="mb-2 block font-stamp text-sm uppercase tracking-widest">Room code</label>
+          <label for="code" class="mb-2 block font-stamp text-sm">Room code</label>
           <div class="flex gap-3">
             <input
               id="code"

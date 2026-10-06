@@ -12,16 +12,18 @@
 {/if}
 
 {#if session.isHost}
+  <!-- Not startable yet is a state to wait in, not a broken button: it keeps full-strength ink on a
+       dashed outline (no fading) with a pulsing dot, and turns solid yellow once it can start. -->
   <Button
     id="start-button"
-    variant="yellow"
-    class="w-full py-4 text-xl"
+    variant={session.canStart ? 'yellow' : 'outline'}
+    class="w-full py-4 text-xl disabled:opacity-100 {session.canStart ? '' : 'border-dashed !bg-white/50'}"
     disabled={!session.canStart}
     onclick={session.startGame}>
     {#if missing > 0}
-      Need {missing} more {missing === 1 ? 'player' : 'players'}
+      <span class="mr-2 inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-riso-pink align-middle"></span>Need {missing} more {missing === 1 ? 'player' : 'players'}
     {:else if session.waitingFor > 0}
-      Waiting for {session.waitingFor} to get ready
+      <span class="mr-2 inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-riso-pink align-middle"></span>Waiting for {session.waitingFor} to get ready
     {:else}
       START GAME
     {/if}

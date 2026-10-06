@@ -44,7 +44,7 @@
         ‹
       </button>
       <div class="min-w-0 flex-1 text-center">
-        <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">{label}</div>
+        <div class="font-stamp text-sm text-riso-muted">{label}</div>
         <div id="avatar-{part}-value" data-index={face[part]} class="font-display text-lg leading-tight">{NAMES[part][face[part]]}</div>
       </div>
       <button

@@ -94,6 +94,6 @@
         Replaying the drawing
       {/if}
     </span>
-    <span class="shrink-0 font-stamp text-xs uppercase tracking-wider opacity-80">Tap to skip</span>
+    <span class="shrink-0 font-stamp text-sm opacity-80">Tap to skip</span>
   </div>
 </div>

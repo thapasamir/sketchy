@@ -28,7 +28,7 @@
     )
   )
 
-  const heading = 'font-stamp text-xs uppercase tracking-widest'
+  const heading = 'font-stamp text-sm'
 </script>
 
 <Modal id="settings-dialog" title="Game settings" {onclose}>

@@ -62,7 +62,7 @@
     <Button class="sm:min-w-52" on:click={() => dispatch('auth', 'login')}>Log in / Sign up</Button>
   </div>
 
-  <p class="mt-4 font-stamp text-xs uppercase tracking-widest text-riso-muted">Free · 3 to 8 players · phones welcome</p>
+  <p class="mt-4 font-stamp text-sm text-riso-muted">Free · 3 to 8 players · phones welcome</p>
 
   {#if error}
     <p class="mt-5 font-stamp text-sm text-riso-stamp" role="alert">{error}</p>

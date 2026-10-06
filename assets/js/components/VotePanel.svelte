@@ -111,9 +111,9 @@
             <span class="min-w-0 flex-1">
               <span class="block break-words text-sm">{player.name}</span>
               {#if looking}
-                <span class="block font-stamp text-[0.7rem] uppercase tracking-wider text-riso-muted">showing their drawing</span>
+                <span class="block font-stamp text-xs text-riso-muted">Showing their drawing</span>
               {:else if voted.includes(player.id)}
-                <span data-voted class="block font-stamp text-[0.7rem] uppercase tracking-wider text-riso-blue">has voted</span>
+                <span data-voted class="block font-stamp text-xs text-riso-blue">Has voted</span>
               {/if}
             </span>
           </button>

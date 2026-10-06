@@ -313,7 +313,7 @@
         {#if drawing}
           <Marker player={drawer} size={30} />
           <div class="min-w-0 flex-1">
-            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted" class:hidden={immersive}>
+            <div class="font-stamp text-sm text-riso-muted" class:hidden={immersive}>
               Round {room.round} of {room.rounds}{#if turn.laps > 1}&nbsp;· Lap {turn.lap} of {turn.laps}{/if}
               <!-- waiting for your turn? say how close it is, right where you are looking -->
               {#if !myTurn && !iAmWatching}
@@ -330,19 +330,19 @@
           </div>
         {:else if phase === 'voting'}
           <div class="min-w-0 flex-1">
-            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">The drawing is finished</div>
+            <div class="font-stamp text-sm text-riso-muted">The drawing is finished</div>
             <div id="turn-text" class="font-display text-xl sm:text-2xl">Who was faking it?</div>
           </div>
         {:else if phase === 'guess'}
           <div class="min-w-0 flex-1">
-            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">The votes are in</div>
+            <div class="font-stamp text-sm text-riso-muted">The votes are in</div>
             <div id="turn-text" class="break-words font-display text-xl sm:text-2xl">
               {iAmImposter ? 'You were caught!' : `${guesserName} was caught!`}
             </div>
           </div>
         {:else}
           <div class="min-w-0 flex-1">
-            <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
+            <div class="font-stamp text-sm text-riso-muted">
               Round {room.round} of {room.rounds} over
             </div>
             <div id="turn-text" class="break-words font-display text-xl sm:text-2xl">
@@ -578,9 +578,9 @@
               {#if !player.connected}<span class="font-stamp text-xs text-riso-muted">(away)</span>{/if}
             </span>
             {#if drawing && player.id === turn.player_id}
-              <span class="font-stamp text-xs uppercase tracking-wider">drawing</span>
+              <span class="font-stamp text-sm">Drawing</span>
             {:else if phase === 'voting' && room.vote?.voted.includes(player.id)}
-              <span data-voted class="font-stamp text-xs uppercase tracking-wider text-riso-blue">voted</span>
+              <span data-voted class="font-stamp text-sm text-riso-blue">Voted</span>
             {/if}
           </li>
         {/each}
@@ -608,7 +608,7 @@
     {#if secret}
     <Card id="secret-card" class="order-4 !p-4 text-center lg:order-2 lg:shrink-0 lg:!p-3">
       <div class="mb-2 flex items-center justify-between gap-2 text-left">
-        <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
+        <div class="font-stamp text-sm text-riso-muted">
           Category <span id="secret-category" class="ml-1 text-riso-ink">{secret?.category}</span>
         </div>
         <button
@@ -632,7 +632,7 @@
             {secret.hint}
           </div>
         {:else}
-          <h3 id="secret-role" class="font-stamp text-xs uppercase tracking-widest text-riso-muted">Your secret word</h3>
+          <h3 id="secret-role" class="font-stamp text-sm text-riso-muted">Your secret word</h3>
           <div id="secret-word" class="mt-1 break-words font-display text-2xl text-riso-blue">{secret.word}</div>
         {/if}
       {/if}

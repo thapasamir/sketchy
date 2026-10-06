@@ -41,7 +41,7 @@
     <!-- side by side where it is narrow but wide enough (a phone), stacked in the sidebar -->
     <div class="grid grid-cols-2 gap-3 lg:block">
       <div>
-        <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">The imposter was</div>
+        <div class="font-stamp text-sm text-riso-muted">The imposter was</div>
         <div id="reveal-imposter" class="mt-1 flex items-center justify-center gap-2">
           <span
             style="animation-delay:{TIMING.nameStart}ms"
@@ -52,7 +52,7 @@
         </div>
       </div>
       <div>
-        <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted lg:mt-2">The word was</div>
+        <div class="font-stamp text-sm text-riso-muted lg:mt-2">The word was</div>
         <div
           id="reveal-word"
           style="animation-delay:{WORD_AT}ms"

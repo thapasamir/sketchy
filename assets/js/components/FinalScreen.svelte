@@ -61,7 +61,7 @@
 <div class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 {room.chat_open ? 'lg:grid-cols-[minmax(0,1fr)_21rem]' : 'mx-auto max-w-2xl'}">
 <div class="flex min-w-0 flex-col gap-4">
   <Card id="final-banner" class="text-center">
-    <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted">
+    <div class="font-stamp text-sm text-riso-muted">
       Game over after {room.final.rounds_played} {room.final.rounds_played === 1 ? 'round' : 'rounds'}
     </div>
     <h2
@@ -79,7 +79,7 @@
     <div id="final-awards" class="grid gap-3 sm:[grid-template-columns:repeat(var(--n),minmax(0,1fr))]" style="--n:{Math.min(titles.length, 3)}">
       {#each titles as award, i (award.key)}
         <Card data-award={award.key} class="animate-rise !p-3 text-center" style="animation-delay:{500 + i * 150}ms">
-          <div class="font-stamp text-[0.7rem] uppercase tracking-widest text-riso-muted">{award.title}</div>
+          <div class="font-stamp text-xs text-riso-muted">{award.title}</div>
           <div class="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
             {#each award.ids as id}
               <span class="flex items-center gap-1.5">
@@ -124,12 +124,12 @@
       <ol class="flex flex-col gap-1.5">
         {#each story as line (line.round)}
           <li data-round={line.round} data-crew-won={line.crewWon} class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-[2px] bg-riso-blue/5 px-2.5 py-2">
-            <span class="w-14 shrink-0 font-stamp text-xs uppercase tracking-wider text-riso-muted">Round {line.round}</span>
+            <span class="w-14 shrink-0 font-stamp text-sm text-riso-muted">Round {line.round}</span>
             <span class="min-w-0 flex-1 text-sm">
               <b class="break-words font-display">{line.imposterName}</b> was the imposter. The word was
               <b class="break-words">{line.word}</b>.
             </span>
-            <span class="shrink-0 font-stamp text-xs uppercase tracking-wider {line.crewWon ? 'text-riso-blue' : 'text-riso-stamp'}">{line.text}</span>
+            <span class="shrink-0 font-stamp text-sm {line.crewWon ? 'text-riso-blue' : 'text-riso-stamp'}">{line.text}</span>
           </li>
         {/each}
       </ol>

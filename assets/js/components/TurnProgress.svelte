@@ -25,7 +25,7 @@
     <div class="mb-2 flex items-baseline justify-between gap-2">
       <h3 class="font-display text-lg">Turn {info.number} of {info.total}</h3>
       {#if laps > 1}
-        <span class="font-stamp text-xs uppercase tracking-wider text-riso-muted">Lap {room.turn.lap} of {laps}</span>
+        <span class="font-stamp text-sm text-riso-muted">Lap {room.turn.lap} of {laps}</span>
       {/if}
     </div>
 

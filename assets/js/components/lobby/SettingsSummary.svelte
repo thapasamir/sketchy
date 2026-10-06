@@ -15,16 +15,16 @@
 
 <dl class="flex flex-col divide-y divide-riso-line border-y border-riso-line">
   <div class="flex items-baseline justify-between gap-4 py-2.5">
-    <dt class="font-stamp text-xs uppercase tracking-widest">Rounds</dt>
+    <dt class="font-stamp text-sm">Rounds</dt>
     <dd id="rounds-value" class="font-display text-2xl text-riso-blue">{room.settings.rounds}</dd>
   </div>
   <div class="flex items-baseline justify-between gap-4 py-2.5">
-    <dt class="font-stamp text-xs uppercase tracking-widest">Time per turn</dt>
+    <dt class="font-stamp text-sm">Time per turn</dt>
     <dd id="drawtime-value" class="font-display text-2xl text-riso-blue">{room.settings.draw_time}s</dd>
   </div>
   <div class="py-2.5">
     <div class="flex items-baseline justify-between gap-4">
-      <dt class="font-stamp text-xs uppercase tracking-widest">Laps per word</dt>
+      <dt class="font-stamp text-sm">Laps per word</dt>
       <dd id="laps-value" class="font-display text-2xl text-riso-blue">{laps === 'auto' ? 'Auto' : laps}</dd>
     </div>
     <p id="laps-hint" class="mt-1 font-stamp text-xs text-riso-muted">
@@ -37,7 +37,7 @@
   </div>
   <div class="py-2.5">
     <div class="flex items-baseline justify-between gap-4">
-      <dt class="font-stamp text-xs uppercase tracking-widest">Words</dt>
+      <dt class="font-stamp text-sm">Words</dt>
       <dd id="words-value" class="font-stamp text-sm">{DIFFICULTY[room.settings.difficulty] ?? ''}</dd>
     </div>
     <dd id="words-summary" class="mt-1.5 flex flex-wrap gap-1.5">

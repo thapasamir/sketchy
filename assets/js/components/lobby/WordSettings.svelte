@@ -17,7 +17,7 @@
     medium: 'A mix of simple and trickier words.',
     all: 'Anything, including words that are hard to draw.',
   }
-  const heading = 'font-stamp text-xs uppercase tracking-widest'
+  const heading = 'font-stamp text-sm'
 
   let allNames = $derived(room.words.categories)
   let everything = $derived(room.settings.categories === 'all')
