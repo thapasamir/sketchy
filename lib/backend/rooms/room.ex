@@ -35,7 +35,7 @@ defmodule Backend.Rooms.Room do
   end
 
   # Limits on what one browser may send. The server never trusts the client's idea of "reasonable".
-  @brush_sizes [1, 2, 3]
+  @brush_sizes [1, 2, 3, 4, 5]
   @max_points_per_batch 80
   @max_points_per_stroke 3_000
   @max_strokes_per_turn 30

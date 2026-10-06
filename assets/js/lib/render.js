@@ -1,8 +1,9 @@
 // Painting strokes onto a canvas. Coordinates are 0..1 and are scaled to the canvas size here,
 // so the same stroke looks the same on a phone and a big monitor.
 
-// brush size 1, 2, 3 -> line width as a fraction of the canvas width
-export const BRUSH_WIDTH = { 1: 0.006, 2: 0.014, 3: 0.03 }
+// brush size 1..5 -> line width as a fraction of the canvas width (keep the sizes in step with
+// @brush_sizes in Backend.Rooms.Room)
+export const BRUSH_WIDTH = { 1: 0.006, 2: 0.014, 3: 0.03, 4: 0.05, 5: 0.08 }
 
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
 

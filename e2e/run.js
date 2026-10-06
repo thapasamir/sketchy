@@ -47,6 +47,7 @@ const PROFILES = {
 const PROFILE_OF = {
   'first-screens': 'steady',
   'reveal-stage': 'steady',
+  shapes: 'steady',
   draw: 'turn',
   'rate-limits': 'limited',
 }

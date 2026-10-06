@@ -22,6 +22,7 @@
   import TurnHandover from './TurnHandover.svelte'
   import Replay from './Replay.svelte'
   import { progress } from '../lib/progress.js'
+  import { TOOLS } from '../lib/shapes.js'
 
   export let room
   export let secret
@@ -47,12 +48,23 @@
   export let sendReaction = () => {}
 
   const BRUSHES = [
-    { size: 1, label: 'Thin', px: 6 },
-    { size: 2, label: 'Medium', px: 12 },
-    { size: 3, label: 'Thick', px: 20 },
+    { size: 1, label: 'Thin', px: 5 },
+    { size: 2, label: 'Medium', px: 10 },
+    { size: 3, label: 'Thick', px: 17 },
+    { size: 4, label: 'Extra thick', px: 24 },
+    { size: 5, label: 'Huge', px: 32 },
   ]
 
+  // the shapes' buttons (their drawings are in the toolbar below)
+  const TOOL_PATHS = {
+    pen: 'M4 20l1-4L16 5l3 3L8 19z M14 7l3 3',
+    line: 'M5 19L19 5',
+    circle: 'M12 4a8 8 0 100 16 8 8 0 000-16z',
+    box: 'M5 6h14v12H5z',
+  }
+
   let size = 2
+  let tool = 'pen'
   let hidden = false
 
   $: turn = room.turn
@@ -423,6 +435,7 @@
           me={playerId}
           color={me?.color}
           {size}
+          {tool}
           canDraw={myTurn}
           pickable={looking}
           {focus}
@@ -499,9 +512,31 @@
     {/if}
 
     {#if phase === 'drawing'}
-      <div id="toolbar" class="flex min-h-[3.25rem] shrink-0 flex-wrap items-center gap-3">
+      <div id="toolbar" class="flex min-h-[3.25rem] shrink-0 flex-wrap items-center gap-2">
         {#if myTurn}
-          <div class="flex items-center gap-1.5" role="group" aria-label="Brush size">
+          <div class="order-1 flex items-center gap-0.5" role="group" aria-label="Tool">
+            {#each TOOLS as t}
+              <button
+                type="button"
+                data-tool={t.id}
+                aria-label={t.label}
+                aria-pressed={tool === t.id}
+                on:click={() => {
+                  tool = t.id
+                  play('select')
+                }}
+                class="grid h-11 w-11 cursor-pointer place-items-center rounded-[3px] border-2 transition lg:h-10 lg:w-10 {tool === t.id
+                  ? 'border-riso-ink bg-white'
+                  : 'border-transparent hover:border-riso-line'}">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={me?.color} stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d={TOOL_PATHS[t.id]} />
+                </svg>
+              </button>
+            {/each}
+          </div>
+          <span class="order-1 hidden h-7 w-px bg-riso-line lg:block" aria-hidden="true"></span>
+          <!-- on a phone: the tools and "I'm done" on one row, the brushes and Undo on the next -->
+          <div class="order-3 flex items-center gap-0.5 lg:order-2" role="group" aria-label="Brush size">
             {#each BRUSHES as brush}
               <button
                 type="button"
@@ -512,15 +547,15 @@
                   size = brush.size
                   play('select')
                 }}
-                class="grid h-11 w-11 cursor-pointer place-items-center rounded-[3px] border-2 transition {size === brush.size
+                class="grid h-11 w-11 cursor-pointer place-items-center rounded-[3px] border-2 transition lg:h-10 lg:w-10 {size === brush.size
                   ? 'border-riso-ink bg-white'
                   : 'border-transparent hover:border-riso-line'}">
                 <span class="rounded-full" style="width:{brush.px}px;height:{brush.px}px;background:{me?.color}"></span>
               </button>
             {/each}
           </div>
-          <Button id="undo-button" class="px-4 py-2 font-stamp text-sm" on:click={undo}>Undo</Button>
-          <Button id="done-button" variant="blue" class="ml-auto px-5 py-2 text-base" on:click={finishTurn}>
+          <Button id="undo-button" class="order-4 px-3 py-2 font-stamp text-sm lg:order-3" on:click={undo}>Undo</Button>
+          <Button id="done-button" variant="blue" class="order-2 ml-auto px-4 py-2 text-base lg:order-4" on:click={finishTurn}>
             I'm done
           </Button>
         {:else}

@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy, createEventDispatcher } from 'svelte'
   import { drawStroke, drawMarker, strokeAt, clear } from '../lib/render.js'
+  import { isShape, shapePoints } from '../lib/shapes.js'
 
   const dispatch = createEventDispatcher()
 
@@ -10,6 +11,9 @@
   export let me = ''
   export let color = '#263A6E'
   export let size = 2
+  // 'pen' draws as the hand moves; 'line', 'circle' and 'box' are dragged out from one corner to the
+  // opposite one, and become a stroke when let go (see lib/shapes.js)
+  export let tool = 'pen'
   // called with each drawing event so it can be sent to the server
   export let send = () => {}
   // Looking back over a finished drawing: `pickable` lets a tap choose whose strokes to look at
@@ -36,6 +40,7 @@
   let width = 0
   let height = 0
   let pen = null // the stroke being drawn right now: { id, pointerId, last, buffer, timer }
+  let shape = null // a shape being dragged out: { pointerId, from, to }
   let unsubscribe
 
   // Same rounding as the server (4 decimals). Without it the drawer's own screen would hold
@@ -140,11 +145,15 @@
   }
 
   function begin(event) {
-    if (!canDraw || pen || event.button > 0) return
+    if (!canDraw || pen || shape || event.button > 0) return
     event.preventDefault()
     canvas.setPointerCapture(event.pointerId)
 
     const point = pointOf(event)
+    if (isShape(tool)) {
+      shape = { pointerId: event.pointerId, from: point, to: point, tool }
+      return previewShape()
+    }
     pen = { id: newId(), pointerId: event.pointerId, last: point, buffer: [], timer: setInterval(flush, FLUSH_MS) }
 
     // draw it here at once, and tell the server; the server shows it to everyone else
@@ -152,7 +161,33 @@
     send({ type: 'start', id: pen.id, size, x: point[0], y: point[1] })
   }
 
+  // the shape so far, on the live layer only: nobody else sees it until it is let go
+  function previewShape() {
+    clear(liveCtx, width, height)
+    drawStroke(liveCtx, { color, size, points: shapePoints(shape.tool, shape.from, shape.to).map(p => p.map(unit)) }, width, height)
+  }
+
+  // let go: the shape becomes a stroke like any other, and is sent as one
+  function commitShape() {
+    const points = shapePoints(shape.tool, shape.from, shape.to).map(p => p.map(unit))
+    shape = null
+    const id = newId()
+    store.apply({ type: 'start', id, player_id: me, color, size, points: [points[0]] })
+    send({ type: 'start', id, size, x: points[0][0], y: points[0][1] })
+    for (let i = 1; i < points.length; i += MAX_BATCH) {
+      const batch = points.slice(i, i + MAX_BATCH)
+      store.apply({ type: 'points', id, points: batch })
+      send({ type: 'points', id, points: batch })
+    }
+    store.apply({ type: 'end', id })
+    send({ type: 'end', id })
+  }
+
   function move(event) {
+    if (shape && event.pointerId === shape.pointerId) {
+      shape.to = pointOf(event)
+      return previewShape()
+    }
     if (!pen || event.pointerId !== pen.pointerId) return
     // a fast hand moves several pixels between events; the browser keeps the ones in between
     const samples = event.getCoalescedEvents?.() ?? []
@@ -176,10 +211,16 @@
 
   function end(event) {
     if (pen && event.pointerId === pen.pointerId) finish()
+    if (shape && event.pointerId === shape.pointerId) commitShape()
   }
 
   // the turn ran out with the pen still down: close the stroke instead of leaving it open
   $: if (!canDraw && pen) finish()
+  // ...or with a shape half dragged out: it is dropped, not sent
+  $: if (!canDraw && shape) {
+    shape = null
+    if (liveCtx) clear(liveCtx, width, height)
+  }
 </script>
 
 <div
