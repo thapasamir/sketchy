@@ -97,6 +97,28 @@ const pressed = (p, name) => p.$eval(`[data-highlight="${name}"]`, e => e.getAtt
   await host.mouse.click(r.x + 0.5 * r.w, r.y + 0.95 * r.h); await wait(250)
   ok('tapping empty paper clears it', (await pressed(host, 'Cara')) === 'false' && (await alpha(host, 'Bob')) > 200)
 
+  // the drawing played back
+  console.log('--- watch it drawn')
+  ok('there is a button to watch it drawn', !!(await host.$('#replay-button')))
+  const before = await alpha(host, 'Bob')
+  await host.click('#replay-button')
+  ok('the replay covers the picture', await until(async () => !!(await host.$('#replay')), 2000))
+  ok('with its own paper, so it starts from a blank page', await host.$eval('#replay', e => getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)'))
+  ok('it is only on my screen', !(await bob.$('#replay')) && !(await cara.$('#replay')))
+  // watch it as it goes, noting whose strokes are being drawn
+  const names = new Set()
+  for (let i = 0; i < 24 && await host.$('#replay'); i++) {
+    names.add((await host.$eval('#replay-who', e => e.textContent.trim()).catch(() => '')) || '')
+    if (i === 6 && process.argv[2]) await host.screenshot({ path: process.argv[2] + '/hl-replay.png' })
+    await wait(120)
+  }
+  ok('every player\'s strokes are shown as it goes, with their name', ['Host', 'Bob', 'Cara'].every(n => [...names].some(x => x.includes(n))), [...names].join('|'))
+  ok('and it ends by itself', await until(async () => !(await host.$('#replay')), 14000))
+  ok('leaving the picture as it was', (await alpha(host, 'Bob')) === before)
+  await host.click('#replay-button'); await wait(400)
+  await host.click('#replay'); await wait(300)
+  ok('a tap ends it early', !(await host.$('#replay')))
+
   // voting still works while a name is highlighted
   await host.click('[data-highlight="Bob"]'); await wait(150)
   ok('looking at a drawing is not a vote', (await host.$eval('[data-vote="Bob"]', e => e.getAttribute('aria-pressed'))) === 'false' && /0 of 3 voted/.test(await host.$eval('#vote-count', e => e.textContent)))

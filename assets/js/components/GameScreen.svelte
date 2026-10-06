@@ -18,6 +18,7 @@
   import Countdown from './Countdown.svelte'
   import VoteSplash from './VoteSplash.svelte'
   import TurnSplash from './TurnSplash.svelte'
+  import Replay from './Replay.svelte'
   import { progress } from '../lib/progress.js'
 
   export let room
@@ -83,6 +84,9 @@
   let focus = null
   $: looking = phase === 'voting' || phase === 'guess' || phase === 'result'
   $: if (!looking) focus = null
+  // the drawing played back from the start; it ends with the moment (the vote, the guess, the result)
+  let replaying = false
+  $: if (!looking || phase) replaying = false
   $: contestants = room.players.filter(p => !p.spectator && p.color)
   // Choosing someone yourself takes over from the reveal below.
   const toggleFocus = id => {
@@ -402,6 +406,9 @@
         {#if phase === 'result' && result?.imposter_id}
           {#key room.round}<RevealStamp {store} imposterId={result.imposter_id} />{/key}
         {/if}
+        {#if replaying}
+          <Replay {store} players={room.players} onclose={() => (replaying = false)} />
+        {/if}
         <ReactionLayer {reactions} />
 
         {#if !immersive}
@@ -445,6 +452,14 @@
           </p>
         </div>
         {/if}
+        <button
+          type="button"
+          id="replay-button"
+          aria-pressed={replaying}
+          on:click={() => (replaying = !replaying)}
+          class="flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border-2 border-riso-ink bg-white/70 px-3 font-stamp text-sm transition hover:bg-white active:scale-[0.97]">
+          <span aria-hidden="true">▶</span> Watch it drawn
+        </button>
         {#if phase !== 'guess'}
           <div class="ml-auto"><ReactionBar react={sendReaction} /></div>
         {/if}
