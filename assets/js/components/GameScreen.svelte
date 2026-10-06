@@ -18,6 +18,7 @@
   import Countdown from './Countdown.svelte'
   import VoteSplash from './VoteSplash.svelte'
   import TurnSplash from './TurnSplash.svelte'
+  import TurnHandover from './TurnHandover.svelte'
   import Replay from './Replay.svelte'
   import { progress } from '../lib/progress.js'
 
@@ -443,6 +444,9 @@
             <span aria-hidden="true">{replaying ? '■' : '▶'}</span>
             {replaying ? 'Stop' : 'Watch it drawn'}
           </button>
+        {/if}
+        {#if drawing && !myTurn && !iAmWatching && drawer}
+          {#key turn.n}<TurnHandover player={drawer} />{/key}
         {/if}
         <ReactionLayer {reactions} />
 

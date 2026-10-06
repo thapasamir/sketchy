@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte'
   import { fly } from 'svelte/transition'
   import Marker from '../Marker.svelte'
 
@@ -22,6 +23,19 @@
   }
 
   let missing = $derived(Math.max(0, minPlayers - players.length))
+
+  // Whoever arrives after you are looking at the list glows for a moment, so you see who it was.
+  // (The people already here when the page opens don't: only arrivals.)
+  const known = new Set(untrack(() => players.map(p => p.id)))
+  let fresh = $state({})
+  $effect(() => {
+    for (const player of players) {
+      if (known.has(player.id)) continue
+      known.add(player.id)
+      fresh[player.id] = true
+      setTimeout(() => delete fresh[player.id], 1900)
+    }
+  })
 </script>
 
 <div class="mb-3 flex items-baseline justify-between gap-3">
@@ -34,7 +48,8 @@
     <li
       in:fly={{ y: 10, duration: 260 }}
       data-player={player.name}
-      class="flex min-h-12 items-center justify-between gap-3 rounded-[2px] border-l-4 px-3 py-2 transition-opacity {player.id === hostId
+      data-arrived={fresh[player.id] ? 'true' : undefined}
+      class="flex min-h-12 items-center justify-between gap-3 rounded-[2px] border-l-4 px-3 py-2 transition-opacity {fresh[player.id] ? 'animate-flash' : ''} {player.id === hostId
         ? 'border-riso-pink bg-riso-pink/5'
         : 'border-riso-blue bg-riso-blue/5'} {player.connected ? '' : 'opacity-50'}">
       <span class="flex min-w-0 items-center gap-2.5">

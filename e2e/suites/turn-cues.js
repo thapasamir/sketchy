@@ -22,7 +22,12 @@ const myTurn = p => p.$eval('#turn-banner', e => e.dataset.myTurn === 'true').ca
 ;(async () => {
   const b = await launch()
   const host = await player(b, 'Host'); const code = await text(host, '#room-code')
-  const bob = await player(b, 'Bob', `${U}/room/${code}`); const cara = await player(b, 'Cara', `${U}/room/${code}`, PHONE)
+  const bob = await player(b, 'Bob', `${U}/room/${code}`)
+  console.log('--- someone arrives in the lobby')
+  ok('their row glows for a moment on the host\'s list, so the host sees who it was', await until(async () => !!(await host.$('#player-list li[data-player="Bob"][data-arrived="true"]')), 2500))
+  const cara = await player(b, 'Cara', `${U}/room/${code}`, PHONE)
+  ok('(and the player who was already there does not glow)', !(await host.$('#player-list li[data-player="Host"][data-arrived]')))
+  ok('the glow goes by itself', await until(async () => !(await host.$('#player-list li[data-arrived]')), 4000))
   const all = [host, bob, cara]
   await wait(700); await click(bob, "I'M READY"); await click(cara, "I'M READY")
 
@@ -41,11 +46,20 @@ const myTurn = p => p.$eval('#turn-banner', e => e.dataset.myTurn === 'true').ca
   const card = await cara.$eval('#secret-card', e => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, vh: innerHeight } })
   ok('on a phone the whole card is on screen without scrolling', card.top >= 0 && card.bottom <= card.vh, JSON.stringify(card))
   ok('and the countdown is on it', /Drawing starts in \d/.test(await text(cara, '#reveal-countdown') || ''))
+  ok('the last seconds are counted out in a big number', await until(async () => /^[123]$/.test(await text(cara, '#reveal-count') || ''), 4000), await text(cara, '#reveal-count'))
 
   console.log('--- the first turn')
   ok('somebody is drawing', await until(async () => (await Promise.all(all.map(myTurn))).some(Boolean), 10000))
   const turns = await Promise.all(all.map(myTurn)); const drawer = all[turns.indexOf(true)]
   const waiting = all.filter(p => p !== drawer)
+
+  // (first, while it is still showing: it only lasts a moment)
+  console.log('--- the pen changes hands, on the picture')
+  const handover = await Promise.all(waiting.map(p => p.$eval('#turn-handover', e => ({ who: e.dataset.drawer, taps: getComputedStyle(e).pointerEvents })).catch(() => null)))
+  ok('everyone waiting sees whose turn it is on the picture itself', handover.every(h => h && h.who === drawer.name), JSON.stringify(handover))
+  ok('it never takes a tap', handover.every(h => h && h.taps === 'none'))
+  ok('the drawer gets "Your turn!" instead of it', !(await drawer.$('#turn-handover')))
+  console.log('--- the turn')
   ok('the drawer is told "Your turn!"', await until(async () => /Your turn!/.test(await text(drawer, '#turn-splash') || '')))
   const splash = await text(drawer, '#turn-splash')
   const word = await text(drawer, '#secret-word')
@@ -54,6 +68,7 @@ const myTurn = p => p.$eval('#turn-banner', e => e.dataset.myTurn === 'true').ca
   const pen = await drawer.evaluate(() => { const e = document.querySelector('#turn-splash'); return getComputedStyle(e).pointerEvents })
   ok('the announcement never takes a tap', pen === 'none', pen)
   ok('and goes away by itself', await until(async () => !(await drawer.$('#turn-splash')), 4000))
+  ok('the ring on the picture goes away by itself too', await until(async () => (await Promise.all(waiting.map(p => p.$('#turn-handover')))).every(x => !x), 4000))
 
   console.log('--- who is next is in the banner, for the people waiting')
   const labels = await Promise.all(waiting.map(p => text(p, '#turn-next')))

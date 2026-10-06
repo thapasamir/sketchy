@@ -20,6 +20,13 @@
   $: leaders = ranking.filter(p => p.score === top).length
   $: showLeaders = top > 0 && leaders < ranking.length
 
+  // who voted for this player, as the players themselves (someone who has since left is skipped)
+  $: voters = id =>
+    Object.entries(result.votes)
+      .filter(([, target]) => target === id)
+      .map(([voter]) => room.players.find(p => p.id === voter))
+      .filter(Boolean)
+
   // The result is revealed in order, for suspense: the imposter's name stamps in first, then the
   // word, then how each person voted, then the points. (TIMING.nameStart is shared with the sounds.)
   const WORD_AT = TIMING.nameImpact + 300
@@ -94,6 +101,16 @@
               {/if}
             </span>
           </span>
+          <!-- the votes this player got, arriving one by one as the faces of whoever cast them -->
+          {#if voters(player.id).length}
+            <span data-ballots={voters(player.id).length} class="flex shrink-0 -space-x-1.5" title="Votes from {voters(player.id).map(v => v.name).join(', ')}">
+              {#each voters(player.id) as voter, k (voter.id)}
+                <span data-ballot={voter.name} style="animation-delay:{VOTES_AT + 200 + i * STEP + k * 160}ms" class="animate-ballot rounded-full bg-riso-paper ring-2 ring-riso-paper">
+                  <Marker player={voter} size={24} />
+                </span>
+              {/each}
+            </span>
+          {/if}
           {#if gained}
             <span data-gained style="animation-delay:{at + 300}ms" class="animate-pop font-stamp text-xs text-riso-blue">+{gained}</span>
           {/if}

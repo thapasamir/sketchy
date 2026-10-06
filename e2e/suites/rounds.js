@@ -106,6 +106,12 @@ const wrongAccusation = async (all, imposter, crew) => { await vote(crew[0], cre
   let s = await scores(host)
   ok('round 1 scored: imposter 2, others 0', s[r1.imposter.name] === 2 && r1.crew.every(p => s[p.name] === 0), JSON.stringify(s))
 
+  // each vote lands on the one it was for, as the voter's face
+  const board = await host.$$eval('#scoreboard li', els => els.map(e => ({ name: e.dataset.player, voted: (e.querySelector('[data-voter]')?.textContent || '').replace(/\s+/g, ' '), ballots: [...e.querySelectorAll('[data-ballot]')].map(b => b.dataset.ballot).sort() })))
+  const expected = Object.fromEntries(board.map(row => [row.name, board.filter(other => new RegExp(`voted ${row.name}\\b`).test(other.voted)).map(o => o.name).sort()]))
+  ok('every vote shows up as a face on the player it was for', board.every(row => JSON.stringify(row.ballots) === JSON.stringify(expected[row.name])), JSON.stringify(board))
+  ok('and at least one vote was cast', board.some(row => row.ballots.length > 0))
+
   console.log('=== the next round starts by itself')
   const t0 = Date.now()
   ok('round 2 begins on its own', await until(async () => (await Promise.all(all.map(async p => /Round 2 of 2/.test(await text(p, '#secret-card') || '')))).every(Boolean), 9000), `after ${Date.now() - t0}ms`)

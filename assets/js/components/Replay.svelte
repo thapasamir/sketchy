@@ -1,5 +1,5 @@
 <script>
-  import { onMount, onDestroy } from 'svelte'
+  import { onMount, onDestroy, untrack } from 'svelte'
   import { drawStroke, clear } from '../lib/render.js'
   import { timeline, shownAt } from '../lib/replay.js'
   import Marker from './Marker.svelte'
@@ -20,9 +20,10 @@
   let closing
   let drawer = $state(null)
 
-  const strokes = store.strokes.filter(s => s.points.length).map(s => ({ ...s, points: [...s.points] }))
+  // (a snapshot, taken once when the replay starts: it must not change under itself as it plays)
+  const strokes = untrack(() => store.strokes.filter(s => s.points.length).map(s => ({ ...s, points: [...s.points] })))
   const plan = timeline(strokes)
-  const byId = Object.fromEntries(players.map(p => [p.id, p]))
+  const byId = untrack(() => Object.fromEntries(players.map(p => [p.id, p])))
 
   function resize() {
     const rect = base.getBoundingClientRect()

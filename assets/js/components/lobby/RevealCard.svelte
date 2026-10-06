@@ -1,10 +1,17 @@
 <script>
   import Card from '../Card.svelte'
   import { TIMING } from '../../lib/cues.js'
+  import { play } from '../../lib/sound.js'
 
   // The card each player reads while everyone else reads theirs. `secret` is null for someone who
   // arrived after the game began: they get no card, only a note.
   let { room, secret, secondsLeft } = $props()
+
+  // the last three seconds are counted out loud: a big number that lands, and a tick
+  let counting = $derived(secondsLeft >= 1 && secondsLeft <= 3)
+  $effect(() => {
+    if (counting) play(secondsLeft === 1 ? 'tickHigh' : 'tick')
+  })
 </script>
 
 <Card id="secret-card" class="flex min-h-[min(30rem,70dvh)] animate-flip-in flex-col justify-center gap-4 text-center">
@@ -49,6 +56,15 @@
       The cards are being dealt for this round. You'll be dealt in from the next one.
     </p>
   {/if}
+
+  <!-- the space is kept, so the card doesn't jump when the numbers start -->
+  <div class="grid h-24 place-items-center" aria-hidden="true">
+    {#if counting}
+      {#key secondsLeft}
+        <div id="reveal-count" class="animate-count font-display text-8xl leading-none text-riso-pink-ink">{secondsLeft}</div>
+      {/key}
+    {/if}
+  </div>
 
   <p id="reveal-countdown" class="font-stamp text-sm uppercase tracking-widest text-riso-muted">
     Drawing starts in {secondsLeft}s
