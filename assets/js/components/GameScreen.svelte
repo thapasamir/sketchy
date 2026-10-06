@@ -17,6 +17,8 @@
   import { urgencyOf, fractionLeft } from '../lib/countdown.js'
   import Countdown from './Countdown.svelte'
   import VoteSplash from './VoteSplash.svelte'
+  import TurnSplash from './TurnSplash.svelte'
+  import { progress } from '../lib/progress.js'
 
   export let room
   export let secret
@@ -168,6 +170,23 @@
   }
   let splashTimer
 
+  // "Your turn!" shows once as the pen comes to me
+  const TURN_SPLASH_MS = 1600
+  let turnSplash = false
+  let splashedTurn = null
+  $: if (myTurn && !iAmWatching && splashedTurn !== turn.n) {
+    splashedTurn = turn.n
+    turnSplash = true
+    turnSplashTimer = setTimeout(() => (turnSplash = false), TURN_SPLASH_MS)
+  }
+  $: if (!myTurn) turnSplash = false
+  let turnSplashTimer
+
+  // who draws after the current drawer, for those waiting their turn
+  $: info = drawing ? progress({ order: turn.order, laps: turn.laps, turn, playerId }) : null
+  $: upNext = info?.upNext ? byId[info.upNext] : null
+  $: meNext = !!info && info.turnsUntilMe === 1
+
   // a new banner pops in whenever the moment changes: a new turn, the vote, the guess, the result
   $: bannerKey = `${phase}:${turn?.n}`
 
@@ -219,6 +238,7 @@
   onDestroy(() => {
     clearInterval(ticker)
     clearTimeout(splashTimer)
+    clearTimeout(turnSplashTimer)
     spotlightTimers.forEach(clearTimeout)
     if (typeof document !== 'undefined') {
       document.body.style.overflow = ''
@@ -237,6 +257,7 @@
 <svelte:window on:keydown={onKey} />
 
 {#if splash}<VoteSplash />{/if}
+{#if turnSplash}<TurnSplash {secret} />{/if}
 
 <!-- Wide screens: the stage (banner, picture, tools, all one width and sized to fit the window) on the
      left, and one sidebar on the right whose chat fills whatever height is left. -->
@@ -266,6 +287,14 @@
           <div class="min-w-0 flex-1">
             <div class="font-stamp text-xs uppercase tracking-widest text-riso-muted" class:hidden={immersive}>
               Round {room.round} of {room.rounds}{#if turn.laps > 1}&nbsp;· Lap {turn.lap} of {turn.laps}{/if}
+              <!-- waiting for your turn? say how close it is, right where you are looking -->
+              {#if !myTurn && !iAmWatching}
+                {#if meNext}
+                  <span id="turn-next" data-me="true" class="ml-1 rounded-[2px] bg-riso-pink px-1.5 py-0.5 text-white">You're up next</span>
+                {:else if upNext}
+                  <span id="turn-next" class="ml-1 text-riso-ink">· Next: {upNext.name}</span>
+                {/if}
+              {/if}
             </div>
             <div id="turn-text" class="font-display {immersive ? 'text-lg leading-tight' : 'truncate text-xl sm:text-2xl'}">
               {myTurn ? 'Your turn. Draw!' : `${drawer?.name ?? 'Someone'} is drawing`}
@@ -341,8 +370,8 @@
           </span>
         {:else}
           <span class="min-w-0 truncate text-sm">
-            <span class="font-stamp text-xs text-riso-muted">Your word:</span>
-            <span class="font-display text-riso-blue">{secret.word}</span>
+            <span class="font-stamp text-xs text-riso-muted">{myTurn ? 'Draw:' : 'Your word:'}</span>
+            <span class="font-display text-riso-blue {myTurn ? 'text-xl' : ''}">{secret.word}</span>
           </span>
         {/if}
         <span class="shrink-0 font-stamp text-xs text-riso-muted">{secret.category}</span>
