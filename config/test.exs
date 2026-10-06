@@ -51,3 +51,5 @@ config :backend,
 # Tests make many users and rooms from one address in a moment, so the abuse limits are off, and
 # the tests of the limits themselves switch them on (see test/backend/rate_limit_test.exs)
 config :backend, :rate_limits, enabled: false
+# (tests make many rooms; the room cap has its own test)
+config :backend, :max_rooms, 1_000

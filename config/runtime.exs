@@ -27,7 +27,7 @@ config :backend, BackendWeb.Endpoint,
 #
 #   RATE_LIMITS=off          turn every limit off
 #   RATE_LIMIT_SCALE=0.5     multiply every count (0.5 = half as many allowed, 2 = twice)
-#   MAX_ROOMS=300            how many rooms may run at once
+#   MAX_ROOMS=100            how many rooms may run at once (fits a 1 GB machine)
 if System.get_env("RATE_LIMITS") in ~w(off false 0) do
   config :backend, :rate_limits, enabled: false
 end

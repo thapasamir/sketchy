@@ -14,7 +14,7 @@ config :backend,
 # Abuse limits (see Backend.RateLimit). `scale` multiplies every count; `seats_per_ip` is how many
 # live room connections one address may hold at once; `max_rooms` is how many rooms may run at once.
 config :backend, :rate_limits, enabled: true, scale: 1, seats_per_ip: 24
-config :backend, :max_rooms, 300
+config :backend, :max_rooms, 100
 
 # Configure the endpoint
 config :backend, BackendWeb.Endpoint,
