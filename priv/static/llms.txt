@@ -1,0 +1,15 @@
+# Sketchy
+
+> Sketchy is a free multiplayer drawing game with an imposter. Players take turns adding to one shared drawing of a secret word, except one player who doesn't know the word. Then everyone votes on who the imposter is. Play with up to 8 friends on phone or computer, no download or account needed.
+
+Sketchy runs in the browser. Rooms are private and created per game, so there is no public content beyond the pages below.
+
+## Pages
+
+- [Play Sketchy](https://sketchy.sakriitech.com/): Home page with game description, and where to create or join a room
+- [Sitemap](https://sketchy.sakriitech.com/sitemap.xml): List of indexable pages
+
+## Optional
+
+- [robots.txt](https://sketchy.sakriitech.com/robots.txt): Crawling rules; room pages (/room/) and the API (/api/) are not for crawlers
+- [AI catalog](https://sketchy.sakriitech.com/.well-known/ai-catalog.json): Machine-readable catalog of resources for AI agents

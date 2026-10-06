@@ -1,0 +1,16 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Sketchy",
+    "identifier": "https://sketchy.sakriitech.com"
+  },
+  "entries": [
+    {
+      "identifier": "https://sketchy.sakriitech.com/llms.txt",
+      "displayName": "Sketchy llms.txt",
+      "description": "Plain-language overview of Sketchy, a free multiplayer imposter drawing game, with links to its public pages.",
+      "mediaType": "text/markdown",
+      "url": "https://sketchy.sakriitech.com/llms.txt"
+    }
+  ]
+}
