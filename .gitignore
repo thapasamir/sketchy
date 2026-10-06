@@ -38,3 +38,4 @@ npm-debug.log
 
 # Output of the browser tests (logs and screenshots).
 /e2e/out/
+deploy/.env
