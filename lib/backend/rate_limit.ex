@@ -43,6 +43,8 @@ defmodule Backend.RateLimit do
     room_join: {60, 300_000},
     # joining a room that doesn't exist: the sign of someone guessing codes (about 330,000 of them)
     room_miss: {15, 300_000},
+    # --- the operator's stats page: wrong passwords are counted (see AdminController) ---
+    admin_miss: {10, 600_000},
     # --- the rest of the API, as a ceiling over everything above ---
     api: {300, 60_000},
     # --- the live connection ---

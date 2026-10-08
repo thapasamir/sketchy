@@ -32,6 +32,52 @@ defmodule Backend.Rooms do
   @doc "How many rooms are running right now."
   def live_rooms, do: DynamicSupervisor.count_children(Backend.RoomSupervisor).active
 
+  @doc """
+  A snapshot of what is running, for the operator's stats page. Counts only: no words, imposters
+  or drawings.
+  """
+  def stats do
+    rooms =
+      Backend.RoomRegistry
+      |> Registry.select([{{:"$1", :_, :_}, [], [:"$1"]}])
+      |> Enum.flat_map(fn code ->
+        case RoomServer.get_state(code) do
+          {:ok, room} -> [room_summary(room)]
+          _ -> []
+        end
+      end)
+      |> Enum.sort_by(& &1.age_s)
+
+    players = Enum.flat_map(rooms, & &1.players)
+
+    %{
+      rooms: length(rooms),
+      max_rooms: Application.get_env(:backend, :max_rooms, 300),
+      players: length(players),
+      connected: Enum.count(players, & &1.connected),
+      by_phase: Enum.frequencies_by(rooms, & &1.phase),
+      sockets: Registry.count(Backend.SeatRegistry),
+      memory_mb: div(:erlang.memory(:total), 1_048_576),
+      uptime_s: div(elem(:erlang.statistics(:wall_clock), 0), 1000),
+      list: rooms
+    }
+  end
+
+  defp room_summary(room) do
+    players = Map.values(room.players)
+
+    %{
+      code: room.code,
+      phase: room.phase,
+      round: room.game && room.game.round,
+      rounds: room.settings.rounds,
+      age_s: DateTime.diff(DateTime.utc_now(), room.created_at),
+      players:
+        for(p <- players, do: %{name: p.name, connected: p.connected?, spectator: p.spectator?})
+        |> Enum.sort_by(& &1.name)
+    }
+  end
+
   # Every room is a running process holding its drawing in memory, so there is only so much
   # room for rooms. Past the limit, new ones wait; people already playing are not affected.
   # (`config :backend, :max_rooms`)

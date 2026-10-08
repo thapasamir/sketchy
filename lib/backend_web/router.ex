@@ -10,6 +10,10 @@ defmodule BackendWeb.Router do
     plug BackendWeb.Auth
   end
 
+  pipeline :admin_ip do
+    plug BackendWeb.ClientIP
+  end
+
   # JSON endpoints: one request, one response
   scope "/api", BackendWeb do
     pipe_through :api
@@ -20,6 +24,14 @@ defmodule BackendWeb.Router do
     get "/users/me", UserController, :me
     post "/rooms", RoomController, :create
     post "/rooms/:code/join", RoomController, :join
+  end
+
+  # The operator's stats page (password inside the controller)
+  scope "/admin", BackendWeb do
+    pipe_through [:admin_ip]
+
+    get "/", AdminController, :page
+    get "/stats", AdminController, :stats
   end
 
   # Everything else gets the Svelte app (/, /room/ABCD, ...)
